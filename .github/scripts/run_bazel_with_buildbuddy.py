@@ -60,19 +60,6 @@ def startup_args(args: Sequence[str], env: Mapping[str, str]) -> list[str]:
         # use BuildBuddy.
         injected_args.append("--noexperimental_remote_repo_contents_cache")
 
-    if (
-        env.get("GITHUB_ACTIONS") == "true"
-        and env.get("RUNNER_OS") == "Windows"
-        and not env.get("BUILDBUDDY_API_KEY")
-        and "--batch" not in configured_startup_args
-    ):
-        # Public-fork Windows jobs use a local Bazel server. On hosted runners,
-        # that server can reset its client socket during startup before any
-        # action runs. Each CI step has a single Bazel invocation, so avoid the
-        # persistent client/server transport and run this local invocation in
-        # batch mode instead. Authenticated BuildBuddy jobs retain server mode.
-        injected_args.append("--batch")
-
     return injected_args
 
 

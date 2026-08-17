@@ -234,6 +234,21 @@ print_bazel_action_failure_summary() {
   echo "--------------------------------"
 }
 
+print_windows_bazel_server_log_tail() {
+  if [[ "${RUNNER_OS:-}" != "Windows" || -z "${BAZEL_OUTPUT_BASE:-}" ]]; then
+    return
+  fi
+
+  local server_log="${BAZEL_OUTPUT_BASE}/server/jvm.out"
+  echo "::group::Bazel Windows server log tail"
+  if [[ -f "$server_log" ]]; then
+    tail -n 200 "$server_log"
+  else
+    echo "Missing Bazel server log: $server_log"
+  fi
+  echo "::endgroup::"
+}
+
 bazel_args=()
 bazel_targets=()
 found_target_separator=0
@@ -417,6 +432,9 @@ bazel_status=${PIPESTATUS[0]}
 set -e
 
 if [[ ${bazel_status:-0} -ne 0 ]]; then
+  if [[ "${RUNNER_OS:-}" == "Windows" ]] && grep -q "Server terminated abruptly" "$bazel_console_log"; then
+    print_windows_bazel_server_log_tail
+  fi
   if [[ $print_failed_bazel_action_summary -eq 1 ]]; then
     print_bazel_action_failure_summary "$bazel_console_log"
   fi
