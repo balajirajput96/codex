@@ -279,6 +279,12 @@ if [[ "${RUNNER_OS:-}" == "Windows" && $windows_msvc_host_platform -eq 1 ]]; the
     # explicit `--platforms=...` flag.
     post_config_bazel_args+=("--host_platform=//:local_windows_msvc")
   fi
+
+  # The repository defaults to hermetic LLVM for reproducible remote builds.
+  # On a standard GitHub-hosted Windows runner, use the installed MSVC C++
+  # toolchain instead: Rust's MSVC link flags must be interpreted by link.exe,
+  # not forwarded to clang++ as filenames.
+  post_config_bazel_args+=("--repo_env=BAZEL_DO_NOT_DETECT_CPP_TOOLCHAIN=")
 fi
 
 if [[ $remote_download_toplevel -eq 1 ]]; then

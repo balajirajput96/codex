@@ -205,7 +205,6 @@ jobs:
           bazel_test_args=(
             test
             --platforms=//:windows_x86_64_msvc
-            --@rules_rust//rust/settings:toolchain_linker_preference=rust
             --skip_incompatible_explicit_targets
             --test_tag_filters=-argument-comment-lint
             --test_verbose_timeout_warnings
@@ -383,10 +382,7 @@ jobs:
             # Use the native MSVC target instead of the upstream-only gnullvm
             # remote-execution configuration.
             bazel_wrapper_args+=(--windows-msvc-host-platform)
-            bazel_clippy_args+=(
-              --platforms=//:windows_x86_64_msvc
-              --@rules_rust//rust/settings:toolchain_linker_preference=rust
-            )
+            bazel_clippy_args+=(--platforms=//:windows_x86_64_msvc)
           fi
 
           bazel_target_lines="$(./scripts/list-bazel-clippy-targets.sh "${bazel_target_list_args[@]}")"
@@ -484,10 +480,7 @@ jobs:
             --build_metadata=TAG_rust_debug_assertions=off
           )
           if [[ "${RUNNER_OS}" == "Windows" ]]; then
-            bazel_build_args+=(
-              --platforms=//:windows_x86_64_msvc
-              --@rules_rust//rust/settings:toolchain_linker_preference=rust
-            )
+            bazel_build_args+=(--platforms=//:windows_x86_64_msvc)
           fi
 
           bazel_target_lines="$(bash ./scripts/list-bazel-release-targets.sh)"
