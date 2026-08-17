@@ -375,6 +375,9 @@ if [[ "${RUNNER_OS:-}" == "Windows" ]]; then
 
     for env_var in "${windows_action_env_vars[@]}"; do
       if [[ -n "${!env_var:-}" ]]; then
+        # Refer to the value inherited by the Bazel client rather than embed
+        # the often very long MSVC SDK value in every command invocation. The
+        # Windows batch-mode client has a 32,768-character command-line cap.
         post_config_bazel_args+=("--action_env=${env_var}" "--host_action_env=${env_var}")
       fi
     done
@@ -387,8 +390,10 @@ if [[ "${RUNNER_OS:-}" == "Windows" ]]; then
 
   if [[ $pass_windows_build_env -eq 1 ]]; then
     post_config_bazel_args+=(
-      "--action_env=PATH=${CODEX_BAZEL_WINDOWS_PATH}"
-      "--host_action_env=PATH=${CODEX_BAZEL_WINDOWS_PATH}"
+      # The Python launcher gives its Bazel subprocess this cache-stable PATH.
+      # Passing the variable name keeps it out of the Windows batch command.
+      "--action_env=PATH"
+      "--host_action_env=PATH"
     )
   elif [[ $windows_cross_compile -eq 1 ]]; then
     # Remote build actions run on Linux RBE workers. Give their shell snippets
@@ -399,7 +404,7 @@ if [[ "${RUNNER_OS:-}" == "Windows" ]]; then
       "--host_action_env=PATH=/usr/bin:/bin"
     )
   fi
-  post_config_bazel_args+=("--test_env=PATH=${CODEX_BAZEL_WINDOWS_PATH}")
+  post_config_bazel_args+=("--test_env=PATH")
 fi
 
 bazel_console_log="$(mktemp)"
