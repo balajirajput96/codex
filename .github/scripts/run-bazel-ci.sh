@@ -408,14 +408,18 @@ if [[ "${RUNNER_OS:-}" == "Windows" ]]; then
 fi
 
 bazel_target_pattern_file=""
+bazel_target_pattern_arg=""
 if [[ "${RUNNER_OS:-}" == "Windows" ]]; then
   # Bazel 9 accepts newline-delimited target patterns from a file. Windows test
   # shards and clippy invocations can exceed the 32,768-character process
   # command-line limit solely because they enumerate hundreds of labels.
   bazel_target_pattern_file="$(mktemp "${PWD}/.bazel-target-patterns.XXXXXX")"
   printf '%s\n' "${bazel_targets[@]}" > "$bazel_target_pattern_file"
+  # Git Bash represents the workspace as `/d/...`, but the native Bazel client
+  # requires a drive-qualified path to read this file in batch mode.
+  bazel_target_pattern_arg="$(cygpath -w "$bazel_target_pattern_file")"
   bazel_targets=()
-  post_config_bazel_args+=("--target_pattern_file=$bazel_target_pattern_file")
+  post_config_bazel_args+=("--target_pattern_file=$bazel_target_pattern_arg")
 fi
 
 bazel_console_log="$(mktemp)"
