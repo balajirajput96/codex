@@ -264,7 +264,7 @@ class RunBazelWithBuildBuddyTest(unittest.TestCase):
                 ["bazel", "--batch", "build", "//codex-rs/..."], env
             )
 
-        which.assert_called_once_with("bazel", path=env["PATH"])
+        which.assert_called_once_with("bazel.exe", path=env["PATH"])
         self.assertEqual(
             command,
             [r"C:\\runner\\bazelisk\\bazel.exe", "--batch", "build", "//codex-rs/..."],

@@ -211,7 +211,8 @@ def windows_bazel_subprocess(
     Bazel actions. Reusing it for the Bazel client prevents batch mode from
     serializing the runner's large developer-shell PATH into the Java command
     line. Resolve Bazel first because setup-bazel's Bazelisk directory is not
-    part of the compact action PATH.
+    part of the compact action PATH, and prefer a native `.exe` over a `.cmd`
+    shim so query expressions containing `|` are not reparsed by `cmd.exe`.
     """
     full_env = dict(env)
     compact_path = full_env.get("CODEX_BAZEL_WINDOWS_PATH")
@@ -220,9 +221,18 @@ def windows_bazel_subprocess(
 
     executable = command[0]
     if not os.path.isabs(executable):
-        resolved_executable = shutil.which(
-            executable, path=full_env.get("PATH")
+        native_executable = (
+            executable
+            if executable.lower().endswith(".exe")
+            else f"{executable}.exe"
         )
+        resolved_executable = shutil.which(
+            native_executable, path=full_env.get("PATH")
+        )
+        if not resolved_executable:
+            resolved_executable = shutil.which(
+                executable, path=full_env.get("PATH")
+            )
         if resolved_executable:
             executable = resolved_executable
 
