@@ -214,9 +214,9 @@ class RunBazelWithBuildBuddyTest(unittest.TestCase):
             ],
         )
 
-    def test_windows_github_actions_local_bazel_uses_batch_mode(self) -> None:
+    def test_windows_github_actions_local_bazel_explicitly_uses_server_mode(self) -> None:
         env = {
-            "BAZEL_OUTPUT_USER_ROOT": r"D:\b",
+            "BAZEL_OUTPUT_USER_ROOT": r"D:\\b",
             "GITHUB_ACTIONS": "true",
             "RUNNER_OS": "Windows",
         }
@@ -227,15 +227,15 @@ class RunBazelWithBuildBuddyTest(unittest.TestCase):
             ),
             [
                 "bazel",
-                r"--output_user_root=D:\b",
+                r"--output_user_root=D:\\b",
                 "--noexperimental_remote_repo_contents_cache",
-                "--batch",
+                "--nobatch",
                 "build",
                 "//codex-rs/...",
             ],
         )
 
-    def test_windows_github_actions_buildbuddy_bazel_keeps_server_mode(self) -> None:
+    def test_windows_github_actions_buildbuddy_bazel_does_not_add_nobatch(self) -> None:
         env = {
             "GITHUB_ACTIONS": "true",
             "RUNNER_OS": "Windows",
@@ -243,7 +243,7 @@ class RunBazelWithBuildBuddyTest(unittest.TestCase):
         }
 
         self.assertNotIn(
-            "--batch",
+            "--nobatch",
             run_bazel_with_buildbuddy.startup_args(["build", "//codex-rs/..."], env),
         )
 

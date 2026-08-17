@@ -65,13 +65,14 @@ def startup_args(args: Sequence[str], env: Mapping[str, str]) -> list[str]:
         and env.get("RUNNER_OS") == "Windows"
         and not env.get("BUILDBUDDY_API_KEY")
         and "--batch" not in configured_startup_args
+        and "--nobatch" not in configured_startup_args
     ):
-        # Public-fork Windows jobs use a local Bazel server. On hosted runners,
-        # that server can reset its client socket during startup before any
-        # action runs. Each CI step has a single Bazel invocation, so avoid the
-        # persistent client/server transport and run this local invocation in
-        # batch mode instead. Authenticated BuildBuddy jobs retain server mode.
-        injected_args.append("--batch")
+        # GitHub-hosted fork jobs must retain Bazel's client/server mode. A
+        # batch-mode Bazel launch expands every command configuration into the
+        # Windows Java process command line and exceeds its 32,768-character
+        # limit before analysis starts. Make the required server mode explicit
+        # for uncredentialed Windows CI invocations.
+        injected_args.append("--nobatch")
 
     return injected_args
 
