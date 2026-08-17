@@ -1,3 +1,7 @@
+# Hermetic LLVM remains the default for reproducible and remote builds. The
+# CI wrapper applies a scoped command-line override for standard GitHub-hosted
+# Windows runners, where Rust's MSVC flags must be consumed by link.exe rather
+# than the hermetic clang++ driver.
 common --repo_env=BAZEL_DO_NOT_DETECT_CPP_TOOLCHAIN=1
 common --repo_env=BAZEL_NO_APPLE_CPP_TOOLCHAIN=1
 # Dummy xcode config so we don't need to build xcode_locator in repo rule.
