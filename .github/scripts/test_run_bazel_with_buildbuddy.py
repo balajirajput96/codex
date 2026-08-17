@@ -252,7 +252,8 @@ class RunBazelWithBuildBuddyTest(unittest.TestCase):
         env = {
             "PATH": r"C:\\runner\\bazelisk;C:\\runner\\full-path",
             "CODEX_BAZEL_WINDOWS_PATH": r"C:\\runner\\compact-path",
-            "UNCHANGED": "value",
+            "SYSTEMROOT": r"C:\\Windows",
+            "UNRELATED_HOSTED_RUNNER_VALUE": "value",
         }
         with patch.object(
             run_bazel_with_buildbuddy.shutil,
@@ -270,8 +271,9 @@ class RunBazelWithBuildBuddyTest(unittest.TestCase):
         )
         self.assertEqual(subprocess_env["PATH"], r"C:\\runner\\compact-path")
         self.assertNotIn("CODEX_BAZEL_WINDOWS_PATH", subprocess_env)
+        self.assertEqual(subprocess_env["SYSTEMROOT"], r"C:\\Windows")
+        self.assertNotIn("UNRELATED_HOSTED_RUNNER_VALUE", subprocess_env)
         self.assertEqual(subprocess_env["BAZEL_DO_NOT_DETECT_CPP_TOOLCHAIN"], "")
-        self.assertEqual(subprocess_env["UNCHANGED"], "value")
 
     def test_bazel_command_uses_configured_local_caches(self) -> None:
         env = {

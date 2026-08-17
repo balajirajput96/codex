@@ -213,21 +213,60 @@ def windows_bazel_subprocess(
     line. Resolve Bazel first because setup-bazel's Bazelisk directory is not
     part of the compact action PATH.
     """
-    subprocess_env = dict(env)
-    compact_path = subprocess_env.get("CODEX_BAZEL_WINDOWS_PATH")
+    full_env = dict(env)
+    compact_path = full_env.get("CODEX_BAZEL_WINDOWS_PATH")
     if not compact_path:
-        return list(command), subprocess_env
+        return list(command), full_env
 
     executable = command[0]
     if not os.path.isabs(executable):
         resolved_executable = shutil.which(
-            executable, path=subprocess_env.get("PATH")
+            executable, path=full_env.get("PATH")
         )
         if resolved_executable:
             executable = resolved_executable
 
+    # Bazel serializes its client environment into the batch-mode Java command.
+    # A hosted runner's developer-shell environment alone can exceed Windows'
+    # 32,768-character limit. Keep just the values required by Windows process
+    # creation, Visual Studio discovery, and the explicit action-env flags from
+    # `run-bazel-ci.sh`.
+    required_client_env_vars = (
+        "APPDATA",
+        "COMSPEC",
+        "HOMEDRIVE",
+        "HOMEPATH",
+        "INCLUDE",
+        "LIB",
+        "LIBPATH",
+        "LOCALAPPDATA",
+        "NUMBER_OF_PROCESSORS",
+        "PATHEXT",
+        "PROCESSOR_ARCHITECTURE",
+        "ProgramFiles",
+        "ProgramFiles(x86)",
+        "ProgramW6432",
+        "SYSTEMDRIVE",
+        "SYSTEMROOT",
+        "TEMP",
+        "TMP",
+        "UCRTVersion",
+        "UniversalCRTSdkDir",
+        "USERPROFILE",
+        "VCINSTALLDIR",
+        "VCToolsInstallDir",
+        "VSINSTALLDIR",
+        "WINDIR",
+        "WindowsLibPath",
+        "WindowsSdkBinPath",
+        "WindowsSdkDir",
+        "WindowsSDKLibVersion",
+        "WindowsSDKVersion",
+    )
+    subprocess_env = {
+        key: full_env[key] for key in required_client_env_vars if full_env.get(key)
+    }
     subprocess_env["PATH"] = compact_path
-    subprocess_env.pop("CODEX_BAZEL_WINDOWS_PATH", None)
     # `run-bazel-ci.sh` asks Bazel to inherit this repository environment
     # variable, overriding the hermetic LLVM default for native MSVC builds.
     # In batch mode Bazel 9 crashes when an inherited `--repo_env` value is
