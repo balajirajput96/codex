@@ -143,7 +143,7 @@ jobs:
           - 3
           - 4
     runs-on: windows-latest
-    name: Bazel test on windows-latest for x86_64-pc-windows-gnullvm shard ${{ matrix.shard }}/4
+    name: Bazel test on windows-latest for x86_64-pc-windows-msvc shard ${{ matrix.shard }}/4
     environment:
       name: bazel
       deployment: false
@@ -162,7 +162,7 @@ jobs:
         id: prepare_bazel
         uses: ./.github/actions/prepare-bazel-ci
         with:
-          target: x86_64-pc-windows-gnullvm
+          target: x86_64-pc-windows-msvc
           # Reuse the former monolithic Windows test cache for restores. Do
           # not save it from every shard below; duplicate uploads would sit on
           # the PR-blocking critical path after the useful test work is done.
@@ -204,6 +204,7 @@ jobs:
 
           bazel_test_args=(
             test
+            --platforms=//:windows_x86_64_msvc
             --skip_incompatible_explicit_targets
             --test_tag_filters=-argument-comment-lint
             --test_verbose_timeout_warnings
@@ -214,7 +215,7 @@ jobs:
           ./.github/scripts/run-bazel-ci.sh \
             --print-failed-action-summary \
             --print-failed-test-logs \
-            --windows-cross-compile \
+            --windows-msvc-host-platform \
             --remote-download-toplevel \
             -- \
             "${bazel_test_args[@]}" \
@@ -226,7 +227,7 @@ jobs:
         continue-on-error: true
         uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
         with:
-          name: bazel-execution-logs-test-x86_64-pc-windows-gnullvm-shard-${{ matrix.shard }}
+          name: bazel-execution-logs-test-x86_64-pc-windows-msvc-shard-${{ matrix.shard }}
           path: ${{ runner.temp }}/bazel-execution-logs
           if-no-files-found: ignore
 
@@ -240,7 +241,7 @@ jobs:
     if: always()
     needs: test-windows-shard
     runs-on: ubuntu-24.04
-    name: Bazel test on windows-latest for x86_64-pc-windows-gnullvm
+    name: Bazel test on windows-latest for x86_64-pc-windows-msvc
 
     steps:
       - name: Confirm Windows Bazel test shards passed
@@ -345,7 +346,7 @@ jobs:
           - os: macos-latest
             target: aarch64-apple-darwin
           - os: windows-latest
-            target: x86_64-pc-windows-gnullvm
+            target: x86_64-pc-windows-msvc
     runs-on: ${{ matrix.os }}
     name: Bazel clippy on ${{ matrix.os }} for ${{ matrix.target }}
     environment:
@@ -377,19 +378,11 @@ jobs:
           bazel_wrapper_args=()
           bazel_target_list_args=()
           if [[ "${RUNNER_OS}" == "Windows" ]]; then
-            # Keep this aligned with the fast Windows Bazel test job: use
-            # Linux RBE for clippy build actions while targeting Windows
-            # gnullvm. Fork/community PRs without the BuildBuddy secret fall
-            # back inside `run-bazel-ci.sh` to the previous local Windows MSVC
-            # host-platform shape.
-            bazel_wrapper_args+=(--windows-cross-compile)
-            bazel_target_list_args+=(--windows-cross-compile)
-            if [[ -z "${BUILDBUDDY_API_KEY:-}" ]]; then
-              # The fork fallback can see incompatible explicit Windows-cross
-              # internal test binaries in the generated target list. Preserve
-              # the old local-fallback behavior there.
-              bazel_clippy_args+=(--skip_incompatible_explicit_targets)
-            fi
+            # Public forks run the Windows checks on the standard hosted image.
+            # Use the native MSVC target instead of the upstream-only gnullvm
+            # remote-execution configuration.
+            bazel_wrapper_args+=(--windows-msvc-host-platform)
+            bazel_clippy_args+=(--platforms=//:windows_x86_64_msvc)
           fi
 
           bazel_target_lines="$(./scripts/list-bazel-clippy-targets.sh "${bazel_target_list_args[@]}")"
@@ -441,7 +434,7 @@ jobs:
           - os: macos-latest
             target: aarch64-apple-darwin
           - os: windows-latest
-            target: x86_64-pc-windows-gnullvm
+            target: x86_64-pc-windows-msvc
     runs-on: ${{ matrix.os }}
     name: Verify release build on ${{ matrix.os }} for ${{ matrix.target }}
     environment:
@@ -473,12 +466,9 @@ jobs:
           # Rust debug assertions explicitly.
           bazel_wrapper_args=()
           if [[ "${RUNNER_OS}" == "Windows" ]]; then
-            # This is build-only signal, so use the same Linux-RBE
-            # cross-compile path as the fast Windows test and clippy jobs.
-            # Fork/community PRs without the BuildBuddy secret fall back
-            # inside `run-bazel-ci.sh` to the previous local Windows MSVC
-            # host-platform shape.
-            bazel_wrapper_args+=(--windows-cross-compile)
+            # Public forks use the native MSVC platform on standard hosted
+            # Windows runners instead of the upstream-only RBE cross path.
+            bazel_wrapper_args+=(--windows-msvc-host-platform)
           fi
 
           bazel_build_args=(
@@ -489,6 +479,9 @@ jobs:
             --build_metadata=TAG_job=verify-release-build
             --build_metadata=TAG_rust_debug_assertions=off
           )
+          if [[ "${RUNNER_OS}" == "Windows" ]]; then
+            bazel_build_args+=(--platforms=//:windows_x86_64_msvc)
+          fi
 
           bazel_target_lines="$(bash ./scripts/list-bazel-release-targets.sh)"
           bazel_targets=()
