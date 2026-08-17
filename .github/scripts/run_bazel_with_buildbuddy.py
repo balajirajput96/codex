@@ -228,6 +228,12 @@ def windows_bazel_subprocess(
 
     subprocess_env["PATH"] = compact_path
     subprocess_env.pop("CODEX_BAZEL_WINDOWS_PATH", None)
+    # `run-bazel-ci.sh` asks Bazel to inherit this repository environment
+    # variable, overriding the hermetic LLVM default for native MSVC builds.
+    # In batch mode Bazel 9 crashes when an inherited `--repo_env` value is
+    # absent, so pass an explicit empty value. `local_config_cc` treats that
+    # as false and still discovers the installed Visual Studio toolchain.
+    subprocess_env["BAZEL_DO_NOT_DETECT_CPP_TOOLCHAIN"] = ""
     return [executable, *command[1:]], subprocess_env
 
 
