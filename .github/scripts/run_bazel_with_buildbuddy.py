@@ -60,6 +60,20 @@ def startup_args(args: Sequence[str], env: Mapping[str, str]) -> list[str]:
         # use BuildBuddy.
         injected_args.append("--noexperimental_remote_repo_contents_cache")
 
+    if (
+        env.get("GITHUB_ACTIONS") == "true"
+        and env.get("RUNNER_OS") == "Windows"
+        and not env.get("BUILDBUDDY_API_KEY")
+        and "--batch" not in configured_startup_args
+        and "--nobatch" not in configured_startup_args
+    ):
+        # GitHub-hosted fork jobs must retain Bazel's client/server mode. A
+        # batch-mode Bazel launch expands every command configuration into the
+        # Windows Java process command line and exceeds its 32,768-character
+        # limit before analysis starts. Make the required server mode explicit
+        # for uncredentialed Windows CI invocations.
+        injected_args.append("--nobatch")
+
     return injected_args
 
 
