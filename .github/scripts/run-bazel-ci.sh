@@ -349,6 +349,11 @@ if [[ -n "${CODEX_BAZEL_EXECUTION_LOG_COMPACT_DIR:-}" ]]; then
 fi
 
 if [[ "${RUNNER_OS:-}" == "Windows" ]]; then
+  # Windows module extensions can add platform-specific state to the committed
+  # lockfile during a build. CI validates the existing dependency graph and
+  # must not leave that generated state in the checkout.
+  post_config_bazel_args+=(--lockfile_mode=off)
+
   pass_windows_build_env=1
   if [[ $windows_cross_compile -eq 1 && -n "${BUILDBUDDY_API_KEY:-}" ]]; then
     # Remote build actions execute on Linux RBE workers. Passing the Windows
