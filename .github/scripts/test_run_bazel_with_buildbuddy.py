@@ -6,6 +6,7 @@ import subprocess
 import sys
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 from tempfile import TemporaryDirectory
 
 import run_bazel_with_buildbuddy
@@ -214,7 +215,7 @@ class RunBazelWithBuildBuddyTest(unittest.TestCase):
             ],
         )
 
-    def test_windows_github_actions_local_bazel_explicitly_uses_server_mode(self) -> None:
+    def test_windows_github_actions_local_bazel_explicitly_uses_batch_mode(self) -> None:
         env = {
             "BAZEL_OUTPUT_USER_ROOT": r"D:\\b",
             "GITHUB_ACTIONS": "true",
@@ -229,13 +230,13 @@ class RunBazelWithBuildBuddyTest(unittest.TestCase):
                 "bazel",
                 r"--output_user_root=D:\\b",
                 "--noexperimental_remote_repo_contents_cache",
-                "--nobatch",
+                "--batch",
                 "build",
                 "//codex-rs/...",
             ],
         )
 
-    def test_windows_github_actions_buildbuddy_bazel_does_not_add_nobatch(self) -> None:
+    def test_windows_github_actions_buildbuddy_bazel_does_not_add_batch(self) -> None:
         env = {
             "GITHUB_ACTIONS": "true",
             "RUNNER_OS": "Windows",
@@ -243,9 +244,33 @@ class RunBazelWithBuildBuddyTest(unittest.TestCase):
         }
 
         self.assertNotIn(
-            "--nobatch",
+            "--batch",
             run_bazel_with_buildbuddy.startup_args(["build", "//codex-rs/..."], env),
         )
+
+    def test_windows_bazel_subprocess_uses_compact_path_and_resolved_executable(self) -> None:
+        env = {
+            "PATH": r"C:\\runner\\bazelisk;C:\\runner\\full-path",
+            "CODEX_BAZEL_WINDOWS_PATH": r"C:\\runner\\compact-path",
+            "UNCHANGED": "value",
+        }
+        with patch.object(
+            run_bazel_with_buildbuddy.shutil,
+            "which",
+            return_value=r"C:\\runner\\bazelisk\\bazel.exe",
+        ) as which:
+            command, subprocess_env = run_bazel_with_buildbuddy.windows_bazel_subprocess(
+                ["bazel", "--batch", "build", "//codex-rs/..."], env
+            )
+
+        which.assert_called_once_with("bazel", path=env["PATH"])
+        self.assertEqual(
+            command,
+            [r"C:\\runner\\bazelisk\\bazel.exe", "--batch", "build", "//codex-rs/..."],
+        )
+        self.assertEqual(subprocess_env["PATH"], r"C:\\runner\\compact-path")
+        self.assertNotIn("CODEX_BAZEL_WINDOWS_PATH", subprocess_env)
+        self.assertEqual(subprocess_env["UNCHANGED"], "value")
 
     def test_bazel_command_uses_configured_local_caches(self) -> None:
         env = {

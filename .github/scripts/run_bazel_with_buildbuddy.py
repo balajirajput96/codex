@@ -2,6 +2,7 @@
 
 import json
 import os
+import shutil
 import subprocess
 import sys
 from collections.abc import Mapping
@@ -67,12 +68,12 @@ def startup_args(args: Sequence[str], env: Mapping[str, str]) -> list[str]:
         and "--batch" not in configured_startup_args
         and "--nobatch" not in configured_startup_args
     ):
-        # GitHub-hosted fork jobs must retain Bazel's client/server mode. A
-        # batch-mode Bazel launch expands every command configuration into the
-        # Windows Java process command line and exceeds its 32,768-character
-        # limit before analysis starts. Make the required server mode explicit
-        # for uncredentialed Windows CI invocations.
-        injected_args.append("--nobatch")
+        # On hosted Windows runners the local persistent server can reset its
+        # client socket during startup. These CI steps each issue one Bazel
+        # command, so run uncredentialed local invocations in batch mode. The
+        # subprocess environment below is compacted so the Java command line
+        # stays within Windows' 32,768-character limit.
+        injected_args.append("--batch")
 
     return injected_args
 
@@ -201,6 +202,35 @@ def bazel_command(*args: str, env: Mapping[str, str] | None = None) -> list[str]
     return [bazel, *startup_args(args, env), *bazel_args_with_remote_config(args, env)]
 
 
+def windows_bazel_subprocess(
+    command: Sequence[str], env: Mapping[str, str]
+) -> tuple[list[str], dict[str, str]]:
+    """Return a Windows-safe Bazel command and client environment.
+
+    `CODEX_BAZEL_WINDOWS_PATH` is already a compact, cache-stable PATH for
+    Bazel actions. Reusing it for the Bazel client prevents batch mode from
+    serializing the runner's large developer-shell PATH into the Java command
+    line. Resolve Bazel first because setup-bazel's Bazelisk directory is not
+    part of the compact action PATH.
+    """
+    subprocess_env = dict(env)
+    compact_path = subprocess_env.get("CODEX_BAZEL_WINDOWS_PATH")
+    if not compact_path:
+        return list(command), subprocess_env
+
+    executable = command[0]
+    if not os.path.isabs(executable):
+        resolved_executable = shutil.which(
+            executable, path=subprocess_env.get("PATH")
+        )
+        if resolved_executable:
+            executable = resolved_executable
+
+    subprocess_env["PATH"] = compact_path
+    subprocess_env.pop("CODEX_BAZEL_WINDOWS_PATH", None)
+    return [executable, *command[1:]], subprocess_env
+
+
 def main() -> None:
     config = remote_config(sys.argv[1:], os.environ)
     if config is None:
@@ -221,7 +251,8 @@ def main() -> None:
     if os.name == "nt":
         # Windows CRT exec can split arguments containing spaces and lose the
         # eventual child exit status. Wait for Bazel and propagate its status.
-        result = subprocess.run(command, check=False)
+        command, subprocess_env = windows_bazel_subprocess(command, os.environ)
+        result = subprocess.run(command, check=False, env=subprocess_env)
         raise SystemExit(result.returncode)
 
     os.execvp(command[0], command)
