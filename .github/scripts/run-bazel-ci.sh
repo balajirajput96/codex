@@ -407,8 +407,25 @@ if [[ "${RUNNER_OS:-}" == "Windows" ]]; then
   post_config_bazel_args+=("--test_env=PATH")
 fi
 
+bazel_target_pattern_file=""
+if [[ "${RUNNER_OS:-}" == "Windows" ]]; then
+  # Bazel 9 accepts newline-delimited target patterns from a file. Windows test
+  # shards and clippy invocations can exceed the 32,768-character process
+  # command-line limit solely because they enumerate hundreds of labels.
+  bazel_target_pattern_file="$(mktemp "${PWD}/.bazel-target-patterns.XXXXXX")"
+  printf '%s\n' "${bazel_targets[@]}" > "$bazel_target_pattern_file"
+  bazel_targets=()
+  post_config_bazel_args+=("--target_pattern_file=$bazel_target_pattern_file")
+fi
+
 bazel_console_log="$(mktemp)"
-trap 'rm -f "$bazel_console_log"' EXIT
+cleanup_bazel_ci_files() {
+  rm -f "$bazel_console_log"
+  if [[ -n "$bazel_target_pattern_file" ]]; then
+    rm -f "$bazel_target_pattern_file"
+  fi
+}
+trap cleanup_bazel_ci_files EXIT
 
 bazel_run_args=(
   "${bazel_args[@]}"
@@ -427,11 +444,15 @@ set +e
 # failures seen in CI (for example "is not a symlink" or permission errors
 # while materializing external repos such as rules_perl). This only disables
 # the startup-level repo contents cache; keyed runs still use BuildBuddy.
+bazel_invocation_args=(
+  --noexperimental_remote_repo_contents_cache
+  "${bazel_run_args[@]}"
+)
+if (( ${#bazel_targets[@]} > 0 )); then
+  bazel_invocation_args+=(-- "${bazel_targets[@]}")
+fi
 run_bazel_with_startup_args \
-  --noexperimental_remote_repo_contents_cache \
-  "${bazel_run_args[@]}" \
-  -- \
-  "${bazel_targets[@]}" \
+  "${bazel_invocation_args[@]}" \
   2>&1 | tee "$bazel_console_log"
 bazel_status=${PIPESTATUS[0]}
 set -e
