@@ -6,7 +6,7 @@
 diff --git a/tools/internal/header_parser.c b/tools/internal/header_parser.c
 --- a/tools/internal/header_parser.c
 +++ b/tools/internal/header_parser.c
-@@ -3,6 +3,12 @@
+@@ -3,4 +3,10 @@
  #include <stdio.h>
  #include <stdlib.h>
  #include <string.h>
@@ -17,5 +17,3 @@ diff --git a/tools/internal/header_parser.c b/tools/internal/header_parser.c
 +#else
  #include <unistd.h>
 +#endif
- 
- int main(int argc, char **argv) {
