@@ -299,11 +299,12 @@ if [[ "${RUNNER_OS:-}" == "Windows" && $windows_msvc_host_platform -eq 1 ]]; the
   # On a standard GitHub-hosted Windows runner, use the installed MSVC C++
   # toolchain instead: Rust's MSVC link flags must be interpreted by link.exe,
   # not forwarded to clang++ as filenames.
-  # A repo_env flag without an assigned value inherits the client environment.
-  # The hosted runner does not define this variable, so this replaces the
-  # repository-wide `=1` default with an unset value and allows local_config_cc
-  # to discover the installed Visual Studio C++ toolchain.
-  post_config_bazel_args+=("--repo_env=BAZEL_DO_NOT_DETECT_CPP_TOOLCHAIN")
+  # Use Bazel's explicit `=NAME` unset form instead of inheriting the client
+  # value. The launcher keeps that variable empty to avoid a Bazel 9 batch-mode
+  # null-environment crash, but local_config_cc treats an empty present value as
+  # disabled detection. `--repo_env==NAME` overrides the repository-wide `=1`
+  # default and allows discovery of the installed Visual Studio C++ toolchain.
+  post_config_bazel_args+=("--repo_env==BAZEL_DO_NOT_DETECT_CPP_TOOLCHAIN")
 fi
 
 if [[ $remote_download_toplevel -eq 1 ]]; then
