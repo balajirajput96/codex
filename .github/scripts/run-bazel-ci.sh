@@ -318,15 +318,15 @@ if [[ "${RUNNER_OS:-}" == "Windows" && $windows_msvc_host_platform -eq 1 ]]; the
     post_config_bazel_args+=("--host_platform=//:win")
   fi
 
-  # Both native-MSVC and gnullvm-targeted jobs bootstrap Rust helper binaries
-  # on the hosted MSVC execution platform. Select the local C++ toolchain so
-  # Rust's MSVC linker arguments reach link.exe; its MSVC target constraints do
-  # not match gnullvm target actions, which keep the hermetic LLVM toolchain.
+  # Native MSVC targets use the general local toolchain. Gnullvm target
+  # actions retain hermetic LLVM, except for rules_rust bootstrap helpers,
+  # whose MSVC linker arguments require the bootstrap-only local wrapper.
   # `--repo_env==NAME` uses Bazel's explicit-unset syntax to override the
   # repository-wide `=1` setting and let the local repository detect MSVC.
   post_config_bazel_args+=(
     "--repo_env==BAZEL_DO_NOT_DETECT_CPP_TOOLCHAIN"
     "--extra_toolchains=//:windows_msvc_local_cc_toolchain"
+    "--extra_toolchains=//:windows_msvc_bootstrap_cc_toolchain"
   )
 fi
 

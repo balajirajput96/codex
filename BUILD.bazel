@@ -80,6 +80,28 @@ toolchain(
     toolchain_type = "@bazel_tools//tools/cpp:toolchain_type",
 )
 
+# rules_rust builds process_wrapper and similar host helpers in a bootstrap
+# configuration. Those helpers execute on MSVC but retain the gnullvm target
+# platform, so they need link.exe without exposing MSVC to normal gnullvm
+# targets, which continue to use hermetic LLVM.
+toolchain(
+    name = "windows_msvc_bootstrap_cc_toolchain",
+    exec_compatible_with = [
+        "@platforms//cpu:x86_64",
+        "@platforms//os:windows",
+        "@llvm//constraints/windows/abi:msvc",
+    ],
+    target_compatible_with = [
+        "@platforms//cpu:x86_64",
+        "@platforms//os:windows",
+        "@llvm//constraints/windows/abi:gnullvm",
+        "@llvm//constraints/windows/crt:msvcrt",
+    ],
+    target_settings = ["@rules_rust//rust/private:bootstrapping"],
+    toolchain = "@local_config_cc//:cc-compiler-x64_windows",
+    toolchain_type = "@bazel_tools//tools/cpp:toolchain_type",
+)
+
 toolchain(
     name = "windows_gnullvm_tests_on_msvc_host_toolchain",
     exec_compatible_with = [
