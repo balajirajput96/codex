@@ -318,18 +318,16 @@ if [[ "${RUNNER_OS:-}" == "Windows" && $windows_msvc_host_platform -eq 1 ]]; the
     post_config_bazel_args+=("--host_platform=//:win")
   fi
 
-  if [[ $windows_cross_compile -eq 0 ]]; then
-    # The native-MSVC lane uses the hosted C++ toolchain: Rust's MSVC link
-    # flags must be interpreted by link.exe, not forwarded to clang++ as
-    # filenames. Do not apply this target-toolchain override to the gnullvm
-    # cross-target fallback, whose target actions keep hermetic LLVM.
-    # `--repo_env==NAME` uses Bazel's explicit-unset syntax to override the
-    # repository-wide `=1` setting and let the local repository detect MSVC.
-    post_config_bazel_args+=(
-      "--repo_env==BAZEL_DO_NOT_DETECT_CPP_TOOLCHAIN"
-      "--extra_toolchains=@local_config_cc_toolchains//:cc-toolchain-x64_windows"
-    )
-  fi
+  # Both native-MSVC and gnullvm-targeted jobs bootstrap Rust helper binaries
+  # on the hosted MSVC execution platform. Select the local C++ toolchain so
+  # Rust's MSVC linker arguments reach link.exe; its MSVC target constraints do
+  # not match gnullvm target actions, which keep the hermetic LLVM toolchain.
+  # `--repo_env==NAME` uses Bazel's explicit-unset syntax to override the
+  # repository-wide `=1` setting and let the local repository detect MSVC.
+  post_config_bazel_args+=(
+    "--repo_env==BAZEL_DO_NOT_DETECT_CPP_TOOLCHAIN"
+    "--extra_toolchains=@local_config_cc_toolchains//:cc-toolchain-x64_windows"
+  )
 fi
 
 if [[ $remote_download_toplevel -eq 1 ]]; then
