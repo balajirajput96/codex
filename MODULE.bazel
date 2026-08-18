@@ -135,6 +135,20 @@ use_repo(osx, "macos_sdk")
 # Needed to disable xcode...
 bazel_dep(name = "apple_support", version = "2.1.0")
 bazel_dep(name = "rules_cc", version = "0.2.18")
+
+# Native Windows CI requires the hosted runner's MSVC toolchain for Rust's
+# MSVC-style linker flags. Materialize the standard Bazel local C++ repository;
+# the Windows CI wrapper explicitly selects its x64 toolchain.
+cc_configure = use_extension(
+    "@rules_cc//cc:extensions.bzl",
+    "cc_configure_extension",
+)
+use_repo(
+    cc_configure,
+    "local_config_cc",
+    "local_config_cc_toolchains",
+)
+
 single_version_override(
     module_name = "rules_cc",
     patch_strip = 1,

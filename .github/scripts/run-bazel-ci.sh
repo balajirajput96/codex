@@ -298,13 +298,15 @@ if [[ "${RUNNER_OS:-}" == "Windows" && $windows_msvc_host_platform -eq 1 ]]; the
   # The repository defaults to hermetic LLVM for reproducible remote builds.
   # On a standard GitHub-hosted Windows runner, use the installed MSVC C++
   # toolchain instead: Rust's MSVC link flags must be interpreted by link.exe,
-  # not forwarded to clang++ as filenames.
-  # Use Bazel's explicit `=NAME` unset form instead of inheriting the client
-  # value. The launcher keeps that variable empty to avoid a Bazel 9 batch-mode
-  # null-environment crash, but local_config_cc treats an empty present value as
-  # disabled detection. `--repo_env==NAME` overrides the repository-wide `=1`
-  # default and allows discovery of the installed Visual Studio C++ toolchain.
-  post_config_bazel_args+=("--repo_env==BAZEL_DO_NOT_DETECT_CPP_TOOLCHAIN")
+  # not forwarded to clang++ as filenames. The Bzlmod local C++ repository is
+  # materialized in MODULE.bazel. Give its x64 Windows toolchain explicit
+  # precedence over the globally registered hermetic LLVM toolchain.
+  # `--repo_env==NAME` uses Bazel's explicit-unset syntax to override the
+  # repository-wide `=1` setting and let the local repository detect MSVC.
+  post_config_bazel_args+=(
+    "--repo_env==BAZEL_DO_NOT_DETECT_CPP_TOOLCHAIN"
+    "--extra_toolchains=@local_config_cc_toolchains//:cc-toolchain-x64_windows"
+  )
 fi
 
 if [[ $remote_download_toplevel -eq 1 ]]; then

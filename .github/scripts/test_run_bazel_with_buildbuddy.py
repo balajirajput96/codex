@@ -273,7 +273,7 @@ class RunBazelWithBuildBuddyTest(unittest.TestCase):
         self.assertNotIn("CODEX_BAZEL_WINDOWS_PATH", subprocess_env)
         self.assertEqual(subprocess_env["SYSTEMROOT"], r"C:\\Windows")
         self.assertNotIn("UNRELATED_HOSTED_RUNNER_VALUE", subprocess_env)
-        self.assertEqual(subprocess_env["BAZEL_DO_NOT_DETECT_CPP_TOOLCHAIN"], "")
+        self.assertNotIn("BAZEL_DO_NOT_DETECT_CPP_TOOLCHAIN", subprocess_env)
 
     def test_bazel_command_uses_configured_local_caches(self) -> None:
         env = {
