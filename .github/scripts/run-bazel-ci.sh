@@ -291,6 +291,13 @@ if [[ "${RUNNER_OS:-}" == "Windows" && $windows_cross_compile -eq 1 && -z "${BUI
   if [[ $has_target_platform_override -eq 0 ]]; then
     post_config_bazel_args+=("--platforms=//:windows_x86_64_gnullvm")
   fi
+  # Local Windows test execution still needs a test toolchain whose execution
+  # platform is native MSVC but whose target ABI is gnullvm. This is normally
+  # supplied by ci-windows-cross when RBE is configured.
+  post_config_bazel_args+=(
+    "--extra_execution_platforms=//:win"
+    "--extra_toolchains=//:windows_gnullvm_tests_on_msvc_host_toolchain"
+  )
 fi
 if [[ "${RUNNER_OS:-}" == "Windows" && $windows_msvc_host_platform -eq 1 ]]; then
   has_host_platform_override=0
@@ -311,18 +318,18 @@ if [[ "${RUNNER_OS:-}" == "Windows" && $windows_msvc_host_platform -eq 1 ]]; the
     post_config_bazel_args+=("--host_platform=//:win")
   fi
 
-  # The repository defaults to hermetic LLVM for reproducible remote builds.
-  # On a standard GitHub-hosted Windows runner, use the installed MSVC C++
-  # toolchain instead: Rust's MSVC link flags must be interpreted by link.exe,
-  # not forwarded to clang++ as filenames. The Bzlmod local C++ repository is
-  # materialized in MODULE.bazel. Give its x64 Windows toolchain explicit
-  # precedence over the globally registered hermetic LLVM toolchain.
-  # `--repo_env==NAME` uses Bazel's explicit-unset syntax to override the
-  # repository-wide `=1` setting and let the local repository detect MSVC.
-  post_config_bazel_args+=(
-    "--repo_env==BAZEL_DO_NOT_DETECT_CPP_TOOLCHAIN"
-    "--extra_toolchains=@local_config_cc_toolchains//:cc-toolchain-x64_windows"
-  )
+  if [[ $windows_cross_compile -eq 0 ]]; then
+    # The native-MSVC lane uses the hosted C++ toolchain: Rust's MSVC link
+    # flags must be interpreted by link.exe, not forwarded to clang++ as
+    # filenames. Do not apply this target-toolchain override to the gnullvm
+    # cross-target fallback, whose target actions keep hermetic LLVM.
+    # `--repo_env==NAME` uses Bazel's explicit-unset syntax to override the
+    # repository-wide `=1` setting and let the local repository detect MSVC.
+    post_config_bazel_args+=(
+      "--repo_env==BAZEL_DO_NOT_DETECT_CPP_TOOLCHAIN"
+      "--extra_toolchains=@local_config_cc_toolchains//:cc-toolchain-x64_windows"
+    )
+  fi
 fi
 
 if [[ $remote_download_toplevel -eq 1 ]]; then
