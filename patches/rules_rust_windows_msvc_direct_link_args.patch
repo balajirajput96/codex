@@ -17,28 +17,28 @@
 +                        if processed_arg == "--sysroot" and i + 1 < len(link_args):
 +                            skip_next = True
 +                        continue
-@@ -828,0 +843 @@
+@@ -832,0 +847 @@
 +            toolchain.rust_std,
-@@ -2946,0 +2961 @@
+@@ -3079,0 +3095 @@
 +        for_windows = False,
-@@ -2947 +2963,2 @@
+@@ -3081 +3097,2 @@
 -        flavor_msvc = False):
 +        flavor_msvc = False,
 +        use_direct_driver = False):
-@@ -2954,0 +2972 @@
+@@ -3088,0 +3106 @@
 +        for_windows (bool, optional): _description_. Defaults to False.
-@@ -2956,0 +2975 @@
+@@ -3090,0 +3109 @@
 +        use_direct_driver (bool, optional): _description_. Defaults to False.
-@@ -2999,0 +3019,5 @@
+@@ -3133,0 +3153,5 @@
 +        if for_windows and flavor_msvc and use_direct_driver and not artifact.basename.endswith(".lib"):
 +            return [
 +                "-Clink-arg={}".format(artifact.path),
 +            ]
 +
-@@ -3048 +3072 @@
+@@ -3182 +3206 @@
 -            ret.extend(portable_link_flags(lib, use_pic, ambiguous_libs, get_lib_name, flavor_msvc = flavor_msvc))
 +            ret.extend(portable_link_flags(lib, use_pic, ambiguous_libs, get_lib_name, for_windows = True, flavor_msvc = flavor_msvc, use_direct_driver = use_direct_driver))
-@@ -3260,5 +3284,12 @@
+@@ -3394,5 +3418,12 @@
 -                args.add_all(
 -                    runtime_libs,
 -                    map_each = get_lib_name,
