@@ -272,8 +272,9 @@ fi
 
 if [[ "${RUNNER_OS:-}" == "Windows" && $windows_cross_compile -eq 1 && -z "${BUILDBUDDY_API_KEY:-}" ]]; then
   # Public forks cannot use the upstream Linux RBE pool. Keep build and test
-  # actions local on the existing gnullvm Windows host platform, preserving the
-  # same target ABI without selecting MSVC-only execution toolchains.
+  # actions local on the gnullvm Windows platform so hermetic LLVM links both
+  # helpers and target binaries. A matching stable Rust exec toolchain is
+  # registered in MODULE.bazel for proc-macro DLLs.
   ci_config=ci-windows
   windows_msvc_host_platform=0
 fi
@@ -291,8 +292,9 @@ if [[ "${RUNNER_OS:-}" == "Windows" && $windows_cross_compile -eq 1 && -z "${BUI
   if [[ $has_target_platform_override -eq 0 ]]; then
     post_config_bazel_args+=("--platforms=//:windows_x86_64_gnullvm")
   fi
-  # Without RBE, resolve tests on a local gnullvm execution platform rather
-  # than MSVC so Rust's GNU linker arguments stay with hermetic LLVM.
+  # Keep test helpers on the local gnullvm execution platform as well as the
+  # gnullvm target ABI. The stable Rust gnullvm exec toolchain supplies matching
+  # proc-macro DLLs, while hermetic LLVM consumes its GNU-style linker inputs.
   post_config_bazel_args+=(
     "--extra_execution_platforms=//:windows_x86_64_gnullvm"
     "--extra_toolchains=//:windows_gnullvm_tests_on_gnullvm_host_toolchain"

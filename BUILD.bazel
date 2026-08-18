@@ -97,9 +97,8 @@ toolchain(
     toolchain_type = "@bazel_tools//tools/test:default_test_toolchain_type",
 )
 
-# Public fork CI uses this fully local path when RBE credentials are absent.
-# Keeping execution and target on gnullvm prevents MSVC-only C++ toolchains from
-# consuming GNU linker arguments emitted by the gnullvm Rust toolchain.
+# The keyless Windows fallback executes tests locally under gnullvm. Keep the
+# default test toolchain compatible with both its execution and target ABI.
 toolchain(
     name = "windows_gnullvm_tests_on_gnullvm_host_toolchain",
     exec_compatible_with = [
