@@ -76,7 +76,7 @@ toolchain(
         "@platforms//os:windows",
         "@llvm//constraints/windows/abi:msvc",
     ],
-    toolchain = "@local_config_cc//:local",
+    toolchain = "@local_config_cc//:cc-compiler-x64_windows",
     toolchain_type = "@bazel_tools//tools/cpp:toolchain_type",
 )
 
