@@ -291,10 +291,14 @@ if [[ "${RUNNER_OS:-}" == "Windows" && $windows_cross_compile -eq 1 && -z "${BUI
     post_config_bazel_args+=("--platforms=//:windows_x86_64_gnullvm")
   fi
   # Resolve gnullvm test targets while keeping proc-macros and other helpers on
-  # the hosted MSVC execution platform. Explicitly register the constrained
+  # the hosted MSVC execution platform. Materialize and register the constrained
   # local MSVC C++ toolchain for those exec actions; otherwise rules_rust pairs
-  # the MSVC Rust sysroot with the hermetic gnullvm LLVM runtime flags.
+  # the MSVC Rust sysroot with either a disabled dummy C++ toolchain or hermetic
+  # gnullvm LLVM runtime flags.
+  #
+  # `--repo_env==NAME` explicitly clears the repository-wide detection guard.
   post_config_bazel_args+=(
+    "--repo_env==BAZEL_DO_NOT_DETECT_CPP_TOOLCHAIN"
     "--extra_execution_platforms=//:win"
     "--extra_toolchains=//:windows_gnullvm_tests_on_msvc_host_toolchain"
     "--extra_toolchains=//:windows_msvc_local_cc_toolchain"
