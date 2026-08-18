@@ -9,6 +9,15 @@ runs:
       run: |
         set -euo pipefail
 
+        # Bazel 9 can materialize Windows-only module-extension state in the
+        # committed lockfile after a build, even when the invocation requests
+        # --lockfile_mode=off. Linux CI separately validates the committed
+        # lockfile with --lockfile_mode=error; restore this generated Windows
+        # state immediately before the generic worktree assertion.
+        if [[ "${RUNNER_OS:-}" == "Windows" ]] && [[ -n "$(git -C "${GITHUB_WORKSPACE}" status --porcelain -- MODULE.bazel.lock)" ]]; then
+          git -C "${GITHUB_WORKSPACE}" checkout -- MODULE.bazel.lock
+        fi
+
         status="$(git -C "${GITHUB_WORKSPACE}" status --porcelain=v1 --untracked-files=normal --ignore-submodules=none)"
         if [[ -z "${status}" ]]; then
           exit 0

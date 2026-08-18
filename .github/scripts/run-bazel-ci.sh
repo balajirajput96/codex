@@ -271,36 +271,14 @@ if [[ ${#bazel_args[@]} -eq 0 || ${#bazel_targets[@]} -eq 0 ]]; then
 fi
 
 if [[ "${RUNNER_OS:-}" == "Windows" && $windows_cross_compile -eq 1 && -z "${BUILDBUDDY_API_KEY:-}" ]]; then
-  # Public forks cannot use the upstream Linux RBE pool. Keep the gnullvm
-  # target ABI while retaining the hosted MSVC execution platform for helper
-  # binaries and Rust proc-macros.
+  # Windows cross-compilation depends on authenticated RBE. Preserve the local
+  # Windows MSVC build shape when credentials are unavailable; forcing the
+  # gnullvm target through the hosted MSVC linker mixes incompatible runtime
+  # libraries and fails with link.exe LNK1181.
   ci_config=ci-windows
+  windows_msvc_host_platform=1
 fi
-
 post_config_bazel_args=()
-if [[ "${RUNNER_OS:-}" == "Windows" && $windows_cross_compile -eq 1 && -z "${BUILDBUDDY_API_KEY:-}" ]]; then
-  has_target_platform_override=0
-  for arg in "${bazel_args[@]}"; do
-    if [[ "$arg" == --platforms=* ]]; then
-      has_target_platform_override=1
-      break
-    fi
-  done
-
-  if [[ $has_target_platform_override -eq 0 ]]; then
-    post_config_bazel_args+=("--platforms=//:windows_x86_64_gnullvm")
-  fi
-  # Resolve test targets for the gnullvm ABI, but execute their helpers on
-  # the hosted MSVC platform. Rust proc-macro DLLs must match that execution
-  # platform, while ABI-scoped C++ toolchains leave gnullvm target actions on
-  # hermetic LLVM. Exec Rustc invokes hosted link.exe because these helpers
-  # receive MSVC-style link arguments.
-  post_config_bazel_args+=(
-    "--extra_execution_platforms=//:win"
-    "--extra_toolchains=//:windows_gnullvm_tests_on_msvc_host_toolchain"
-    "--@rules_rust//rust/settings:extra_exec_rustc_flag=-Clinker=link.exe"
-  )
-fi
 if [[ "${RUNNER_OS:-}" == "Windows" && $windows_msvc_host_platform -eq 1 ]]; then
   has_host_platform_override=0
   for arg in "${bazel_args[@]}"; do
@@ -320,11 +298,8 @@ if [[ "${RUNNER_OS:-}" == "Windows" && $windows_msvc_host_platform -eq 1 ]]; the
     post_config_bazel_args+=("--host_platform=//:win")
   fi
 
-  # Native MSVC targets use the local C++ toolchain. The public gnullvm
-  # fallback above owns its exec-Rustc linker override because it executes
-  # helpers on MSVC while targeting gnullvm. `--repo_env==NAME` uses Bazel's
-  # explicit-unset syntax to override the repository-wide `=1` setting and let
-  # the local repository detect MSVC.
+  # `--repo_env==NAME` uses Bazel's explicit-unset syntax to override the
+  # repository-wide `=1` setting and let the local repository detect MSVC.
   post_config_bazel_args+=(
     "--repo_env==BAZEL_DO_NOT_DETECT_CPP_TOOLCHAIN"
     "--extra_toolchains=//:windows_msvc_local_cc_toolchain"
@@ -490,6 +465,18 @@ run_bazel_with_startup_args \
   2>&1 | tee "$bazel_console_log"
 bazel_status=${PIPESTATUS[0]}
 set -e
+
+# Bazel 9 can still materialize Windows-only module-extension state into the
+# committed lockfile despite --lockfile_mode=off. The Linux CI lane validates
+# the committed lockfile with --lockfile_mode=error; retain that authoritative
+# validation while ensuring a Windows build cannot leave generated state in its
+# checkout for the clean-worktree guard to report as a source change. Use the
+# same Git status check as that guard because Windows clean filters can
+# normalize line endings for a diff or content hash while Git still marks the
+# worktree file as modified.
+if [[ "${RUNNER_OS:-}" == "Windows" ]] && [[ -n "$(git status --porcelain -- MODULE.bazel.lock)" ]]; then
+  git checkout -- MODULE.bazel.lock
+fi
 
 if [[ ${bazel_status:-0} -ne 0 ]]; then
   if [[ "${RUNNER_OS:-}" == "Windows" ]] && grep -q "Server terminated abruptly" "$bazel_console_log"; then
