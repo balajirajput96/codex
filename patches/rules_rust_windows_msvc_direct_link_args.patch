@@ -1,44 +1,49 @@
 --- a/rust/private/rustc.bzl
 +++ b/rust/private/rustc.bzl
-@@ -470,0 +471,8 @@
-+                elif processed_arg == "-L" and i + 1 < len(link_args):
-+                    path = link_args[i + 1]
-+                    if ld_is_direct_driver and toolchain.target_os == "windows" and toolchain.target_abi == "msvc":
+@@ -470,2 +470,12 @@
+                 # Handle macOS version flag: convert -mmacos-version-min=X.Y to -macos_version_min X.Y
++                if ld_is_direct_driver and toolchain.target_os == "windows" and toolchain.target_abi == "msvc":
++                    if processed_arg == "-L" and i + 1 < len(link_args):
 +                        skip_next = True
 +                        continue
-+                    filtered_args.extend([processed_arg, path])
-+                    skip_next = True
-+
-@@ -471,0 +480,2 @@
-+                    if ld_is_direct_driver and toolchain.target_os == "windows" and toolchain.target_abi == "msvc":
++                    if processed_arg.startswith("-L"):
 +                        continue
-@@ -475,0 +486,4 @@
-+                    if ld_is_direct_driver and toolchain.target_os == "windows" and toolchain.target_abi == "msvc":
++                    if processed_arg == "--sysroot" or processed_arg.startswith("--sysroot="):
 +                        if processed_arg == "--sysroot" and i + 1 < len(link_args):
 +                            skip_next = True
 +                        continue
-@@ -832,0 +847 @@
+                 if processed_arg.startswith("-mmacos-version-min="):
+@@ -832,2 +842,3 @@
+             crate_info.compile_data,
 +            toolchain.rust_std,
-@@ -3079,0 +3095 @@
+             dep_info.transitive_proc_macro_data,
+@@ -3079,4 +3090,6 @@
+         get_lib_name,
 +        for_windows = False,
-@@ -3081 +3097,2 @@
+         for_darwin = False,
 -        flavor_msvc = False):
 +        flavor_msvc = False,
 +        use_direct_driver = False):
-@@ -3088,0 +3106 @@
+     """_summary_
+@@ -3088,3 +3101,5 @@
+         get_lib_name (_type_): _description_
 +        for_windows (bool, optional): _description_. Defaults to False.
-@@ -3090,0 +3109 @@
+         for_darwin (bool, optional): _description_. Defaults to False.
+         flavor_msvc (bool, optional): _description_. Defaults to False.
 +        use_direct_driver (bool, optional): _description_. Defaults to False.
-@@ -3133,0 +3153,5 @@
+@@ -3134,1 +3149,6 @@
 +        if for_windows and flavor_msvc and use_direct_driver and not artifact.basename.endswith(".lib"):
 +            return [
 +                "-Clink-arg={}".format(artifact.path),
 +            ]
 +
-@@ -3182 +3206 @@
+         if flavor_msvc:
+@@ -3181,2 +3201,2 @@
+             get_lib_name = get_lib_name_for_windows if flavor_msvc else get_lib_name_default
 -            ret.extend(portable_link_flags(lib, use_pic, ambiguous_libs, get_lib_name, flavor_msvc = flavor_msvc))
 +            ret.extend(portable_link_flags(lib, use_pic, ambiguous_libs, get_lib_name, for_windows = True, flavor_msvc = flavor_msvc, use_direct_driver = use_direct_driver))
-@@ -3394,5 +3418,12 @@
+@@ -3393,6 +3413,13 @@
+             if include_link_flags:
 -                args.add_all(
 -                    runtime_libs,
 -                    map_each = get_lib_name,
