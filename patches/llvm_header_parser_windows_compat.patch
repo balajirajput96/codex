@@ -12,8 +12,8 @@ diff --git a/tools/internal/header_parser.c b/tools/internal/header_parser.c
  #include <string.h>
 +#if defined(_WIN32)
 +#include <io.h>
++#include <process.h>
 +#define close _close
-+#define execv _execv
 +#else
  #include <unistd.h>
 +#endif
