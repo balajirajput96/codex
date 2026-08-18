@@ -637,7 +637,10 @@ def _require_nullable_chatgpt_account_email(out_path: Path) -> None:
     class_source = source[class_start:class_end]
     nullable_with_default = "    email: str | None = None"
     required_nullable = "    email: str | None"
-    if class_source.count(required_nullable) == 1 and class_source.count(nullable_with_default) == 0:
+    if (
+        class_source.count(required_nullable) == 1
+        and class_source.count(nullable_with_default) == 0
+    ):
         # Newer datamodel-code-generator releases already emit the required,
         # nullable form that the public SDK contract needs.
         return
