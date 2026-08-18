@@ -293,12 +293,12 @@ if [[ "${RUNNER_OS:-}" == "Windows" && $windows_cross_compile -eq 1 && -z "${BUI
   # Resolve test targets for the gnullvm ABI, but execute their helpers on
   # the hosted MSVC platform. Rust proc-macro DLLs must match that execution
   # platform, while ABI-scoped C++ toolchains leave gnullvm target actions on
-  # hermetic LLVM. Exec Rustc invokes hosted link.exe because these helpers
-  # receive MSVC-style link arguments.
+  # hermetic LLVM. Do not hard-code link.exe for exec Rustc here: gnullvm
+  # helpers receive GNU-style linker arguments, which must be routed through
+  # the selected toolchain's compatible compiler driver.
   post_config_bazel_args+=(
     "--extra_execution_platforms=//:win"
     "--extra_toolchains=//:windows_gnullvm_tests_on_msvc_host_toolchain"
-    "--@rules_rust//rust/settings:extra_exec_rustc_flag=-Clinker=link.exe"
   )
 fi
 if [[ "${RUNNER_OS:-}" == "Windows" && $windows_msvc_host_platform -eq 1 ]]; then
