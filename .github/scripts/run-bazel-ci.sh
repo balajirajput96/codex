@@ -271,13 +271,27 @@ if [[ ${#bazel_args[@]} -eq 0 || ${#bazel_targets[@]} -eq 0 ]]; then
 fi
 
 if [[ "${RUNNER_OS:-}" == "Windows" && $windows_cross_compile -eq 1 && -z "${BUILDBUDDY_API_KEY:-}" ]]; then
-  # Windows cross-compilation depends on authenticated RBE. Preserve the local
-  # Windows build shape when credentials are unavailable.
+  # Public forks cannot use the upstream Linux RBE pool. Keep build actions
+  # local, but preserve the gnullvm target ABI so Windows runtime coverage uses
+  # the same Rust/V8 contract as upstream. Helper tools still use hosted MSVC.
   ci_config=ci-windows
   windows_msvc_host_platform=1
 fi
 
 post_config_bazel_args=()
+if [[ "${RUNNER_OS:-}" == "Windows" && $windows_cross_compile -eq 1 && -z "${BUILDBUDDY_API_KEY:-}" ]]; then
+  has_target_platform_override=0
+  for arg in "${bazel_args[@]}"; do
+    if [[ "$arg" == --platforms=* ]]; then
+      has_target_platform_override=1
+      break
+    fi
+  done
+
+  if [[ $has_target_platform_override -eq 0 ]]; then
+    post_config_bazel_args+=("--platforms=//:windows_x86_64_gnullvm")
+  fi
+fi
 if [[ "${RUNNER_OS:-}" == "Windows" && $windows_msvc_host_platform -eq 1 ]]; then
   has_host_platform_override=0
   for arg in "${bazel_args[@]}"; do
