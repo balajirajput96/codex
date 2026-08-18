@@ -290,13 +290,15 @@ if [[ "${RUNNER_OS:-}" == "Windows" && $windows_cross_compile -eq 1 && -z "${BUI
   if [[ $has_target_platform_override -eq 0 ]]; then
     post_config_bazel_args+=("--platforms=//:windows_x86_64_gnullvm")
   fi
-  # Resolve gnullvm test helpers on a matching gnullvm execution platform.
-  # Mixing the MSVC helper platform with gnullvm's hermetic LLVM toolchain
-  # feeds one link action both MSVC and GNU runtime arguments, which neither
-  # link.exe nor clang++ can consume. Keep both sides on the gnullvm ABI.
+  # Resolve gnullvm test targets while keeping proc-macros and other helpers on
+  # the hosted MSVC execution platform. Explicitly register the constrained
+  # local MSVC C++ toolchain for those exec actions; otherwise rules_rust pairs
+  # the MSVC Rust sysroot with the hermetic gnullvm LLVM runtime flags.
   post_config_bazel_args+=(
-    "--extra_execution_platforms=//:local_windows"
-    "--extra_toolchains=//:windows_gnullvm_tests_on_gnullvm_host_toolchain"
+    "--extra_execution_platforms=//:win"
+    "--extra_toolchains=//:windows_gnullvm_tests_on_msvc_host_toolchain"
+    "--extra_toolchains=//:windows_msvc_local_cc_toolchain"
+    "--@rules_rust//rust/settings:extra_exec_rustc_flag=-Clinker=link.exe"
   )
 fi
 if [[ "${RUNNER_OS:-}" == "Windows" && $windows_msvc_host_platform -eq 1 ]]; then
