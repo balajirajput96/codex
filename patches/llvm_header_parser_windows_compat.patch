@@ -1,0 +1,21 @@
+# What: make hermetic LLVM's header parser compile on native Windows hosts.
+# Why: the parser is a small process-launcher utility.  Its POSIX include and
+# symbols (`unistd.h`, `close`, and `execv`) prevent it from compiling with the
+# hosted MSVC C++ toolchain used by local public-fork CI.
+
+diff --git a/tools/internal/header_parser.c b/tools/internal/header_parser.c
+--- a/tools/internal/header_parser.c
++++ b/tools/internal/header_parser.c
+@@ -3,6 +3,12 @@
+ #include <stdio.h>
+ #include <stdlib.h>
+ #include <string.h>
++#if defined(_WIN32)
++#include <io.h>
++#define close _close
++#define execv _execv
++#else
+ #include <unistd.h>
++#endif
+ 
+ int main(int argc, char **argv) {
