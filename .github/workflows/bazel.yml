@@ -128,6 +128,8 @@ jobs:
       - name: Check for a clean worktree
         if: always() && !cancelled()
         uses: ./.github/actions/check-clean-worktree
+        with:
+          ignore-paths: ${{ runner.os == 'Windows' && 'MODULE.bazel.lock' || '' }}
 
   test-windows-shard:
     # Split the Windows Bazel test leg across separate Windows hosts. Jobs with
@@ -233,6 +235,8 @@ jobs:
       - name: Check for a clean worktree
         if: always() && !cancelled()
         uses: ./.github/actions/check-clean-worktree
+        with:
+          ignore-paths: ${{ runner.os == 'Windows' && 'MODULE.bazel.lock' || '' }}
 
   test-windows:
     # Preserve the existing required-check surface while the real work happens
@@ -329,6 +333,8 @@ jobs:
       - name: Check for a clean worktree
         if: always() && !cancelled()
         uses: ./.github/actions/check-clean-worktree
+        with:
+          ignore-paths: ${{ runner.os == 'Windows' && 'MODULE.bazel.lock' || '' }}
 
   clippy:
     timeout-minutes: 30
@@ -424,6 +430,8 @@ jobs:
       - name: Check for a clean worktree
         if: always() && !cancelled()
         uses: ./.github/actions/check-clean-worktree
+        with:
+          ignore-paths: ${{ runner.os == 'Windows' && 'MODULE.bazel.lock' || '' }}
 
   verify-release-build:
     timeout-minutes: 30
@@ -534,3 +542,5 @@ jobs:
       - name: Check for a clean worktree
         if: always() && !cancelled()
         uses: ./.github/actions/check-clean-worktree
+        with:
+          ignore-paths: ${{ runner.os == 'Windows' && 'MODULE.bazel.lock' || '' }}
