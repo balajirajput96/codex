@@ -97,27 +97,6 @@ toolchain(
     toolchain_type = "@bazel_tools//tools/test:default_test_toolchain_type",
 )
 
-# Public fork CI uses this fully local path when RBE credentials are absent.
-# Keeping execution and target on gnullvm prevents MSVC-only C++ toolchains from
-# consuming GNU linker arguments emitted by the gnullvm Rust toolchain.
-toolchain(
-    name = "windows_gnullvm_tests_on_gnullvm_host_toolchain",
-    exec_compatible_with = [
-        "@platforms//cpu:x86_64",
-        "@platforms//os:windows",
-        "@llvm//constraints/windows/abi:gnullvm",
-        "@llvm//constraints/windows/crt:msvcrt",
-    ],
-    target_compatible_with = [
-        "@platforms//cpu:x86_64",
-        "@platforms//os:windows",
-        "@llvm//constraints/windows/abi:gnullvm",
-        "@llvm//constraints/windows/crt:msvcrt",
-    ],
-    toolchain = "@bazel_tools//tools/test:empty_toolchain",
-    toolchain_type = "@bazel_tools//tools/test:default_test_toolchain_type",
-)
-
 alias(
     name = "rbe",
     actual = "@rbe_platform",
