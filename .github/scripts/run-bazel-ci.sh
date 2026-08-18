@@ -326,7 +326,7 @@ if [[ "${RUNNER_OS:-}" == "Windows" && $windows_msvc_host_platform -eq 1 ]]; the
   # repository-wide `=1` setting and let the local repository detect MSVC.
   post_config_bazel_args+=(
     "--repo_env==BAZEL_DO_NOT_DETECT_CPP_TOOLCHAIN"
-    "--extra_toolchains=@local_config_cc_toolchains//:cc-toolchain-x64_windows"
+    "--extra_toolchains=//:windows_msvc_local_cc_toolchain"
   )
 fi
 

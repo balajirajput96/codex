@@ -61,6 +61,25 @@ platform(
     ],
 )
 
+# `local_config_cc_toolchains` emits an unconstrained hosted toolchain that can
+# otherwise match gnullvm targets. Restrict its MSVC compiler to the Windows
+# MSVC ABI so cross-target actions retain the hermetic LLVM toolchain.
+toolchain(
+    name = "windows_msvc_local_cc_toolchain",
+    exec_compatible_with = [
+        "@platforms//cpu:x86_64",
+        "@platforms//os:windows",
+        "@llvm//constraints/windows/abi:msvc",
+    ],
+    target_compatible_with = [
+        "@platforms//cpu:x86_64",
+        "@platforms//os:windows",
+        "@llvm//constraints/windows/abi:msvc",
+    ],
+    toolchain = "@local_config_cc//:cc-compiler-x64_windows",
+    toolchain_type = "@bazel_tools//tools/cpp:toolchain_type",
+)
+
 toolchain(
     name = "windows_gnullvm_tests_on_msvc_host_toolchain",
     exec_compatible_with = [
