@@ -19,7 +19,7 @@
 +                        continue
 @@ -828,0 +843 @@
 +            toolchain.rust_std,
-@@ -2945,0 +2961 @@
+@@ -2946,0 +2961 @@
 +        for_windows = False,
 @@ -2947 +2963,2 @@
 -        flavor_msvc = False):
