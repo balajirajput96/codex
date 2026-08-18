@@ -97,6 +97,26 @@ toolchain(
     toolchain_type = "@bazel_tools//tools/test:default_test_toolchain_type",
 )
 
+# The keyless Windows fallback executes tests locally under gnullvm. Keep the
+# default test toolchain compatible with both its execution and target ABI.
+toolchain(
+    name = "windows_gnullvm_tests_on_gnullvm_host_toolchain",
+    exec_compatible_with = [
+        "@platforms//cpu:x86_64",
+        "@platforms//os:windows",
+        "@llvm//constraints/windows/abi:gnullvm",
+        "@llvm//constraints/windows/crt:msvcrt",
+    ],
+    target_compatible_with = [
+        "@platforms//cpu:x86_64",
+        "@platforms//os:windows",
+        "@llvm//constraints/windows/abi:gnullvm",
+        "@llvm//constraints/windows/crt:msvcrt",
+    ],
+    toolchain = "@bazel_tools//tools/test:empty_toolchain",
+    toolchain_type = "@bazel_tools//tools/test:default_test_toolchain_type",
+)
+
 alias(
     name = "rbe",
     actual = "@rbe_platform",
