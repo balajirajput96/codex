@@ -271,10 +271,11 @@ if [[ ${#bazel_args[@]} -eq 0 || ${#bazel_targets[@]} -eq 0 ]]; then
 fi
 
 if [[ "${RUNNER_OS:-}" == "Windows" && $windows_cross_compile -eq 1 && -z "${BUILDBUDDY_API_KEY:-}" ]]; then
-  # Public forks cannot use the upstream Linux RBE pool. Keep the gnullvm
-  # target ABI while retaining the hosted MSVC execution platform for helper
-  # binaries and Rust proc-macros.
+  # Public forks cannot use the upstream Linux RBE pool. Keep build and test
+  # actions local on the existing gnullvm Windows host platform, preserving the
+  # same target ABI without selecting MSVC-only execution toolchains.
   ci_config=ci-windows
+  windows_msvc_host_platform=0
 fi
 
 post_config_bazel_args=()
@@ -290,19 +291,11 @@ if [[ "${RUNNER_OS:-}" == "Windows" && $windows_cross_compile -eq 1 && -z "${BUI
   if [[ $has_target_platform_override -eq 0 ]]; then
     post_config_bazel_args+=("--platforms=//:windows_x86_64_gnullvm")
   fi
-  # Resolve gnullvm test targets while keeping proc-macros and other helpers on
-  # the hosted MSVC execution platform. Materialize and register the constrained
-  # local MSVC C++ toolchain for those exec actions; otherwise rules_rust pairs
-  # the MSVC Rust sysroot with either a disabled dummy C++ toolchain or hermetic
-  # gnullvm LLVM runtime flags.
-  #
-  # `--repo_env==NAME` explicitly clears the repository-wide detection guard.
+  # Without RBE, resolve tests on a local gnullvm execution platform rather
+  # than MSVC so Rust's GNU linker arguments stay with hermetic LLVM.
   post_config_bazel_args+=(
-    "--repo_env==BAZEL_DO_NOT_DETECT_CPP_TOOLCHAIN"
-    "--extra_execution_platforms=//:win"
-    "--extra_toolchains=//:windows_gnullvm_tests_on_msvc_host_toolchain"
-    "--extra_toolchains=//:windows_msvc_local_cc_toolchain"
-    "--@rules_rust//rust/settings:extra_exec_rustc_flag=-Clinker=link.exe"
+    "--extra_execution_platforms=//:windows_x86_64_gnullvm"
+    "--extra_toolchains=//:windows_gnullvm_tests_on_gnullvm_host_toolchain"
   )
 fi
 if [[ "${RUNNER_OS:-}" == "Windows" && $windows_msvc_host_platform -eq 1 ]]; then
