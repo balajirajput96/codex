@@ -181,6 +181,9 @@ common:ci-linux --platforms=//:rbe
 # On mac, we can run all the build actions remotely but test actions locally.
 common:ci-macos --config=ci-bazel
 common:ci-macos --build_metadata=TAG_os=macos
+# Keep reading shared outputs but do not upload local darwin-sandbox action
+# results. Bazel 9's remote output upload path has crashed on hosted macOS.
+common:ci-macos --noremote_upload_local_results
 common:ci-macos --strategy=TestRunner=darwin-sandbox,local
 
 # On Windows, use Linux remote execution for build actions but keep test actions
