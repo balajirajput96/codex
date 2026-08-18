@@ -288,11 +288,13 @@ if [[ "${RUNNER_OS:-}" == "Windows" && $windows_msvc_host_platform -eq 1 ]]; the
   done
 
   if [[ $has_host_platform_override -eq 0 ]]; then
-    # Use the MSVC Windows platform for jobs that need helper binaries like
-    # Rust test wrappers and V8 generators to resolve a compatible toolchain.
-    # Callers that need a different Windows target platform should pass an
-    # explicit `--platforms=...` flag.
-    post_config_bazel_args+=("--host_platform=//:local_windows_msvc")
+    # Use the short MSVC Windows platform label for jobs that need helper
+    # binaries like Rust test wrappers and V8 generators to resolve a compatible
+    # toolchain. This keeps rules_rust bootstrap sysroot paths under the legacy
+    # 260-character limit enforced by the hosted MSVC linker. Callers that need
+    # a different Windows target platform should pass an explicit
+    # `--platforms=...` flag.
+    post_config_bazel_args+=("--host_platform=//:win")
   fi
 
   # The repository defaults to hermetic LLVM for reproducible remote builds.
