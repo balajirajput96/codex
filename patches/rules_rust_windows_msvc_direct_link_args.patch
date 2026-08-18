@@ -84,7 +84,7 @@
 +                        if runtime_lib.basename.endswith(".lib"):
 +                            args.add(get_lib_name(runtime_lib), format = static_runtime_link_format)
 +                        else:
-+                            args.add(runtime_lib.path, format = "--codegen=link-arg=%s")
++                            args.add(runtime_lib, format = "--codegen=link-arg=%s")
 +                else:
 +                    args.add_all(
 +                        runtime_libs,
