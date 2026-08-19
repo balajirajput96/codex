@@ -188,6 +188,9 @@ rules_rust.patch(
         # Skip transient native-Windows linker outputs while consolidating
         # dependency search paths.
         "//patches:rules_rust_windows_process_wrapper_skip_temp_outputs.patch",
+        # Keep Windows Rust action command lines below CreateProcessW's
+        # 32,767-character limit by routing compiler flags through a response file.
+        "//patches:rules_rust_windows_force_param_file.patch",
     ],
     strip = 1,
 )

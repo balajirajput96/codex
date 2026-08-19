@@ -536,6 +536,7 @@ mod tests {
     fn signed_agent_identity_jwt(
         record: &AgentIdentityAuthRecord,
     ) -> jsonwebtoken::errors::Result<String> {
+        codex_agent_identity::ensure_jsonwebtoken_crypto_provider();
         let mut header = jsonwebtoken::Header::new(jsonwebtoken::Algorithm::RS256);
         header.kid = Some("test-key".to_string());
         jsonwebtoken::encode(
