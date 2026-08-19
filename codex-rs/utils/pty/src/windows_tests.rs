@@ -403,21 +403,18 @@ async fn conpty_ctrl_c_interrupts_powershell_foreground_child() -> anyhow::Resul
     .await?;
     let (session, mut output_rx, exit_rx) = combine_spawned_output(spawned);
     let writer = session.writer_sender();
-    wait_for_output_contains(&mut output_rx, "PS ", /*timeout_ms*/ 10_000).await?;
     writer.send(b"ping.exe -4 -t localhost\n".to_vec()).await?;
-    wait_for_output_contains(&mut output_rx, "TTL=", /*timeout_ms*/ 10_000).await?;
-    // Wait for a second response so the native child has held the ConPTY
-    // foreground for a complete ping interval before Ctrl-C is delivered.
-    wait_for_output_contains(&mut output_rx, "TTL=", /*timeout_ms*/ 10_000).await?;
-    tokio::time::sleep(Duration::from_millis(500)).await;
+    wait_for_output_contains(&mut output_rx, "127.0.0.1", /*timeout_ms*/ 10_000).await?;
+
     writer.send(vec![0x03]).await?;
     tokio::time::sleep(tokio::time::Duration::from_millis(200)).await;
-    const RESUMED_MARKER: &str = "__CODEX_POWERSHELL_RESUMED__";
-    writer
-        .send(format!("Write-Output '{RESUMED_MARKER}'\n").into_bytes())
-        .await?;
-    let mut output =
-        wait_for_output_contains(&mut output_rx, RESUMED_MARKER, /*timeout_ms*/ 10_000).await?;
+    writer.send(b"cmd.exe /D /C ver\n".to_vec()).await?;
+    let mut output = wait_for_output_contains(
+        &mut output_rx,
+        "Microsoft Windows",
+        /*timeout_ms*/ 10_000,
+    )
+    .await?;
 
     writer.send(b"exit 0\n".to_vec()).await?;
     let (remaining, exit_code) =

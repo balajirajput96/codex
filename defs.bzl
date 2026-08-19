@@ -5,8 +5,8 @@ load("@rules_rust//rust:defs.bzl", "rust_binary", "rust_library", "rust_proc_mac
 load("//bazel/rules/testing:foreign_platform_binary.bzl", "foreign_platform_binary")
 load("//bazel/rules/testing/wine:wine_runtime.bzl", "WINE_TEST_TARGET_COMPATIBLE_WITH", "wine_test_runtime")
 
-# Match Cargo's Windows linker behavior so Bazel-built binaries and tests use
-# the same stack reserve on both Windows ABIs and resolve UCRT imports on MSVC.
+# Match Cargo's Windows linker behavior so gnullvm-built binaries and tests use
+# the same stack reserve as Cargo builds.
 WINDOWS_GNULLVM_RUSTC_LINK_FLAGS = [
     "-C",
     "link-arg=-Wl,--stack,8388608",  # 8 MiB
@@ -14,14 +14,6 @@ WINDOWS_GNULLVM_RUSTC_LINK_FLAGS = [
 
 WINDOWS_RUSTC_LINK_FLAGS = select({
     "@llvm//constraints/windows/abi:gnullvm": WINDOWS_GNULLVM_RUSTC_LINK_FLAGS,
-    "@llvm//constraints/windows/abi:msvc": [
-        "-C",
-        "link-arg=/STACK:8388608",  # 8 MiB
-        "-C",
-        "link-arg=/NODEFAULTLIB:libucrt.lib",
-        "-C",
-        "link-arg=ucrt.lib",
-    ],
     "//conditions:default": [],
 })
 
