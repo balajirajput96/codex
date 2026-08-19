@@ -351,16 +351,10 @@ insta = "1.46.3"
 inventory = "0.3.19"
 itertools = "0.14.0"
 jsonptr = { version = "0.7.1", default-features = false }
-<<<<<<< HEAD
 # Select a single JWT crypto backend for every Bazel and Cargo target. Without
 # this, different dependency graphs can enable zero or multiple providers.
 # AWS-LC is already part of the workspace's hermetic Windows build graph.
 jsonwebtoken = { version = "10.3.0", default-features = false, features = ["aws_lc_rs", "use_pem"] }
-=======
-# jsonwebtoken 10 requires exactly one crypto backend at runtime. Prefer the
-# pure-Rust provider so native MSVC and gnullvm tests share the same closure.
-jsonwebtoken = { version = "10.3.0", default-features = false, features = ["rust_crypto", "use_pem"] }
->>>>>>> 7408cc528 (fix(test): select jsonwebtoken RustCrypto backend)
 keyring = { version = "3.6", default-features = false }
 landlock = "0.4.4"
 lazy_static = "1"
