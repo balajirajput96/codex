@@ -1,6 +1,22 @@
 load("//:defs.bzl", "codex_rust_crate")
 
+# Sandboxed V8 provides allocator shims that conflict with the explicit UCRT
+# import required by ordinary native MSVC crates. Keep the shared stack reserve
+# but let V8 select the CRT when this crate targets native MSVC.
+CODE_MODE_RUNTIME_WINDOWS_RUSTC_LINK_FLAGS = select({
+    "@llvm//constraints/windows/abi:gnullvm": [
+        "-C",
+        "link-arg=-Wl,--stack,8388608",  # 8 MiB
+    ],
+    "@llvm//constraints/windows/abi:msvc": [
+        "-C",
+        "link-arg=/STACK:8388608",  # 8 MiB
+    ],
+    "//conditions:default": [],
+})
+
 codex_rust_crate(
     name = "code-mode-runtime",
     crate_name = "codex_code_mode_runtime",
+    windows_rustc_link_flags = CODE_MODE_RUNTIME_WINDOWS_RUSTC_LINK_FLAGS,
 )

@@ -26,6 +26,7 @@ struct WindowsShell {
     name: &'static str,
     program: String,
     args: Vec<String>,
+    prompt_marker: &'static str,
     child_command: String,
 }
 
@@ -315,6 +316,7 @@ async fn conpty_delivers_input_to_foreground_children() -> anyhow::Result<()> {
         name: "cmd",
         program: std::env::var("COMSPEC").unwrap_or_else(|_| "cmd.exe".to_string()),
         args: vec!["/D".to_string(), "/Q".to_string()],
+        prompt_marker: ">",
         child_command: format!("\"{}\" -u -c \"{code}\"", python.replace('"', "\"\"")),
     }];
     if let Some(program) = find_powershell() {
@@ -322,6 +324,7 @@ async fn conpty_delivers_input_to_foreground_children() -> anyhow::Result<()> {
             name: "PowerShell",
             program,
             args: vec!["-NoLogo".to_string(), "-NoProfile".to_string()],
+            prompt_marker: "PS ",
             child_command: format!("& '{}' -u -c \"{code}\"", python.replace('\'', "''")),
         });
     }
@@ -340,6 +343,13 @@ async fn conpty_delivers_input_to_foreground_children() -> anyhow::Result<()> {
         .await?;
         let (session, mut output_rx, exit_rx) = combine_spawned_output(spawned);
         let writer = session.writer_sender();
+        wait_for_output_contains(
+            &mut output_rx,
+            shell.prompt_marker,
+            /*timeout_ms*/ 10_000,
+        )
+        .await
+        .map_err(|err| anyhow::anyhow!("{} shell did not become ready: {err}", shell.name))?;
         writer
             .send(format!("{}\n", shell.child_command).into_bytes())
             .await?;
@@ -393,24 +403,21 @@ async fn conpty_ctrl_c_interrupts_powershell_foreground_child() -> anyhow::Resul
     .await?;
     let (session, mut output_rx, exit_rx) = combine_spawned_output(spawned);
     let writer = session.writer_sender();
+    wait_for_output_contains(&mut output_rx, "PS ", /*timeout_ms*/ 10_000).await?;
     writer.send(b"ping.exe -4 -t localhost\n".to_vec()).await?;
-    wait_for_output_contains(&mut output_rx, "127.0.0.1", /*timeout_ms*/ 10_000).await?;
-
-    // The first ping response only proves that the child has started writing.
-    // Give ConPTY time to transfer foreground input ownership from PowerShell
-    // to the native child before delivering Ctrl-C. Without this barrier, a
-    // loaded hosted runner can leave Ctrl-C queued for PowerShell and the
-    // foreground `ping.exe` process continues indefinitely.
-    tokio::time::sleep(Duration::from_secs(1)).await;
+    wait_for_output_contains(&mut output_rx, "TTL=", /*timeout_ms*/ 10_000).await?;
+    // Wait for a second response so the native child has held the ConPTY
+    // foreground for a complete ping interval before Ctrl-C is delivered.
+    wait_for_output_contains(&mut output_rx, "TTL=", /*timeout_ms*/ 10_000).await?;
+    tokio::time::sleep(Duration::from_millis(500)).await;
     writer.send(vec![0x03]).await?;
     tokio::time::sleep(tokio::time::Duration::from_millis(200)).await;
-    writer.send(b"cmd.exe /D /C ver\n".to_vec()).await?;
-    let mut output = wait_for_output_contains(
-        &mut output_rx,
-        "Microsoft Windows",
-        /*timeout_ms*/ 10_000,
-    )
-    .await?;
+    const RESUMED_MARKER: &str = "__CODEX_POWERSHELL_RESUMED__";
+    writer
+        .send(format!("Write-Output '{RESUMED_MARKER}'\n").into_bytes())
+        .await?;
+    let mut output =
+        wait_for_output_contains(&mut output_rx, RESUMED_MARKER, /*timeout_ms*/ 10_000).await?;
 
     writer.send(b"exit 0\n".to_vec()).await?;
     let (remaining, exit_code) =
