@@ -312,6 +312,7 @@ register_toolchains("@rules_rust_bindgen//:all")
 register_toolchains("//bazel/toolchains/prost:toolchain")
 
 crate = use_extension("@rules_rs//rs:extensions.bzl", "crate")
+
 # rules_rs does not infer all host procedural-macro edges on Windows gnullvm.
 # Keep ctor/dtor's proc-macro crates in the host dependency graph explicitly.
 crate.annotation(
