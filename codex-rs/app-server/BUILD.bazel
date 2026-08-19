@@ -30,4 +30,8 @@ codex_rust_crate(
     windows_test_env = {
         "RUST_TEST_THREADS": "1",
     },
+    test_threads = select({
+        "@platforms//os:macos": 1,
+        "//conditions:default": 0,
+    }),
 )
