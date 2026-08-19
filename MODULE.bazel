@@ -191,6 +191,9 @@ rules_rust.patch(
         # Keep Windows Rust action command lines below CreateProcessW's
         # 32,767-character limit by routing compiler flags through a response file.
         "//patches:rules_rust_windows_force_param_file.patch",
+        # The process wrapper's own env and argument-file options can also
+        # exceed CreateProcessW's limit for large Windows test targets.
+        "//patches:rules_rust_windows_outer_wrapper_param_file.patch",
     ],
     strip = 1,
 )
