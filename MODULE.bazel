@@ -366,6 +366,7 @@ crate.annotation(
         "x86_64-pc-windows-gnullvm": ["pure"],
     },
 )
+
 # The foreign Windows toolchain can omit proc-macro edges from generated crate
 # targets; keep these explicit so cross-target Bazel builds pass consistently.
 crate.annotation(
