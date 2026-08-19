@@ -48,27 +48,33 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
+      # Native release artifacts are maintained by the canonical openai/codex
+      # repository. Forks cannot rely on those artifacts because Actions
+      # artifacts expire and are not reproduced by pull-request workflows.
       - name: Stage npm package
+        if: github.repository == 'openai/codex'
         id: stage_npm_package
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
-          # Use the newest successful rust-release run so the native payload
-          # remains downloadable after older workflow artifacts expire.
-          CODEX_VERSION=0.133.0-alpha.4
-          RELEASE_RUN_ID="$(gh run list \
+          # Select the newest successful rust-release run that publishes the
+          # cross-platform native payload required by the npm package layout.
+          release_workflow="$(gh run list \
             --repo openai/codex \
             --workflow .github/workflows/rust-release.yml \
             --status success \
             --limit 1 \
-            --json databaseId \
-            --jq '.[0].databaseId')"
-          if [[ -z "$RELEASE_RUN_ID" ]]; then
-            echo "::error::Unable to find a successful upstream rust-release run"
+            --json headBranch,url \
+            --jq 'first | [.headBranch, .url] | @tsv')"
+          IFS=$'\t' read -r release_branch workflow_url <<< "${release_workflow}"
+          if [[ -z "${release_branch}" || -z "${workflow_url}" || "${release_branch}" != rust-v* ]]; then
+            echo "::error::Unable to resolve a successful openai/codex rust-release workflow." >&2
             exit 1
           fi
-          WORKFLOW_URL="https://github.com/openai/codex/actions/runs/${RELEASE_RUN_ID}"
+          CODEX_VERSION="${release_branch#rust-v}"
+          WORKFLOW_URL="${workflow_url}"
+          echo "Using ${WORKFLOW_URL} for Codex ${CODEX_VERSION} native artifacts."
           OUTPUT_DIR="${RUNNER_TEMP}"
           python3 ./scripts/stage_npm_packages.py \
             --release-version "$CODEX_VERSION" \
@@ -78,7 +84,12 @@ jobs:
           PACK_OUTPUT="${OUTPUT_DIR}/codex-npm-${CODEX_VERSION}.tgz"
           echo "pack_output=$PACK_OUTPUT" >> "$GITHUB_OUTPUT"
 
+      - name: Explain skipped native npm staging on forks
+        if: github.repository != 'openai/codex'
+        run: echo "Skipping native npm artifact staging because this is a fork; package-builder and installer tests still run above."
+
       - name: Upload staged npm package artifact
+        if: github.repository == 'openai/codex'
         uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
         with:
           name: codex-npm-staging
