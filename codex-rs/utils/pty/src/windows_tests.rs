@@ -385,11 +385,9 @@ async fn conpty_delivers_input_to_foreground_children() -> anyhow::Result<()> {
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
-async fn conpty_ctrl_c_interrupts_powershell_foreground_child() -> anyhow::Result<()> {
-    let Some(program) = find_powershell() else {
-        return Ok(());
-    };
-    let args = vec!["-NoLogo".to_string(), "-NoProfile".to_string()];
+async fn conpty_ctrl_c_interrupts_foreground_child() -> anyhow::Result<()> {
+    let program = "cmd.exe".to_string();
+    let args = vec!["/D".to_string(), "/Q".to_string()];
     let env: HashMap<String, String> = std::env::vars().collect();
     let spawned = spawn_pty_process(
         &program,
@@ -408,13 +406,12 @@ async fn conpty_ctrl_c_interrupts_powershell_foreground_child() -> anyhow::Resul
 
     writer.send(vec![0x03]).await?;
     tokio::time::sleep(tokio::time::Duration::from_millis(200)).await;
-    writer.send(b"cmd.exe /D /C ver\n".to_vec()).await?;
-    let mut output = wait_for_output_contains(
-        &mut output_rx,
-        "Microsoft Windows",
-        /*timeout_ms*/ 10_000,
-    )
-    .await?;
+    const RESUMED_MARKER: &str = "__CODEX_CMD_RESUMED__";
+    writer
+        .send(format!("echo {RESUMED_MARKER}\n").into_bytes())
+        .await?;
+    let mut output =
+        wait_for_output_contains(&mut output_rx, RESUMED_MARKER, /*timeout_ms*/ 10_000).await?;
 
     writer.send(b"exit 0\n".to_vec()).await?;
     let (remaining, exit_code) =
@@ -423,7 +420,7 @@ async fn conpty_ctrl_c_interrupts_powershell_foreground_child() -> anyhow::Resul
     assert_eq!(
         exit_code,
         0,
-        "PowerShell did not resume after Ctrl-C: {:?}",
+        "cmd.exe did not resume after Ctrl-C: {:?}",
         String::from_utf8_lossy(&output)
     );
     Ok(())

@@ -1,7 +1,6 @@
 use std::collections::BTreeMap;
 use std::error::Error as StdError;
 use std::fmt;
-use std::sync::Once;
 use std::time::Duration;
 
 use anyhow::Context;
@@ -45,17 +44,6 @@ const PROD_AGENT_IDENTITY_AUTHAPI_BASE_URL: &str = "https://auth.openai.com/api/
 const STAGING_AGENT_IDENTITY_AUTHAPI_BASE_URL: &str = "https://auth.api.openai.org/api/accounts";
 const AGENT_IDENTITY_KEY_SEED_BYTES: usize = 64;
 const AGENT_IDENTITY_KEY_DERIVATION_CONTEXT: &[u8] = b"codex-agent-identity-ed25519-v1";
-
-/// Ensures JSON Web Token operations use AWS-LC when both supported crypto
-/// backends are present in the resolved dependency graph.
-pub fn ensure_jsonwebtoken_crypto_provider() {
-    static JSONWEBTOKEN_PROVIDER_INIT: Once = Once::new();
-    JSONWEBTOKEN_PROVIDER_INIT.call_once(|| {
-        // Preserve a provider that an embedding application may have installed
-        // before this crate is invoked.
-        let _ = jsonwebtoken::crypto::aws_lc::DEFAULT_PROVIDER.install_default();
-    });
-}
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub enum ChatGptEnvironment {
@@ -279,8 +267,6 @@ pub fn decode_agent_identity_jwt(
     jwt: &str,
     jwks: Option<&JwkSet>,
 ) -> Result<AgentIdentityJwtClaims> {
-    ensure_jsonwebtoken_crypto_provider();
-
     let Some(jwks) = jwks else {
         return decode_agent_identity_jwt_payload(jwt);
     };
@@ -842,7 +828,6 @@ mod tests {
     }
 
     fn test_rsa_encoding_key() -> EncodingKey {
-        ensure_jsonwebtoken_crypto_provider();
         EncodingKey::from_rsa_pem(
             br#"-----BEGIN PRIVATE KEY-----
 MIIEvgIBADANBgkqhkiG9w0BAQEFAASCBKgwggSkAgEAAoIBAQDWpAXYypOsYAwO
