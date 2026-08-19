@@ -134,8 +134,9 @@ jobs:
   test-windows-shard:
     # Split the Windows Bazel test leg across separate Windows hosts. Jobs with
     # BuildBuddy credentials use Linux RBE for build actions; test execution
-    # remains on a Windows runner.
-    timeout-minutes: 30
+    # remains on a Windows runner. Public forks build locally without RBE, and
+    # a cold gnullvm shard can exceed 30 minutes before it reaches its tests.
+    timeout-minutes: 60
     strategy:
       fail-fast: false
       matrix:
@@ -337,7 +338,9 @@ jobs:
           ignore-paths: ${{ runner.os == 'Windows' && 'MODULE.bazel.lock' || '' }}
 
   clippy:
-    timeout-minutes: 30
+    # The Windows gnullvm matrix entry compiles locally on public forks when
+    # BuildBuddy is unavailable, so retain enough time for a cold toolchain.
+    timeout-minutes: 60
     strategy:
       fail-fast: false
       matrix:
@@ -434,7 +437,9 @@ jobs:
           ignore-paths: ${{ runner.os == 'Windows' && 'MODULE.bazel.lock' || '' }}
 
   verify-release-build:
-    timeout-minutes: 30
+    # The public Windows gnullvm fallback must compile a release graph locally.
+    # Permit a cold cache run to finish rather than cancelling it at 30 minutes.
+    timeout-minutes: 60
     strategy:
       fail-fast: false
       matrix:
