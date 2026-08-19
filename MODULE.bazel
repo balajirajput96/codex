@@ -263,29 +263,6 @@ nightly_rust.repository_set(
     versions = ["nightly/2025-09-18"],
 )
 
-# The public Windows fallback also needs the stable toolchain used by the
-# workspace crates to execute on gnullvm. Without this set, proc-macro DLLs
-# are produced with an MSVC exec toolchain but consumed under gnullvm.
-nightly_rust.repository_set(
-    name = "rust_windows_x86_64_gnullvm_stable",
-    edition = "2024",
-    exec_compatible_with = [
-        "@platforms//cpu:x86_64",
-        "@platforms//os:windows",
-        "@llvm//constraints/windows/abi:gnullvm",
-        "@llvm//constraints/windows/crt:msvcrt",
-    ],
-    exec_triple = "x86_64-pc-windows-gnullvm",
-    target_compatible_with = [
-        "@platforms//cpu:x86_64",
-        "@platforms//os:windows",
-        "@llvm//constraints/windows/abi:gnullvm",
-        "@llvm//constraints/windows/crt:msvcrt",
-    ],
-    target_settings = ["@rules_rust//rust/toolchain/channel:stable"],
-    target_triple = "x86_64-pc-windows-gnullvm",
-    versions = ["1.95.0"],
-)
 use_repo(nightly_rust, "rust_toolchains")
 
 toolchains = use_extension("@rules_rs//rs/toolchains:module_extension.bzl", "toolchains")
