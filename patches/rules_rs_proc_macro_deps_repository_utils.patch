@@ -1,0 +1,45 @@
+--- a/rs/private/repository_utils.bzl
++++ b/rs/private/repository_utils.bzl
+@@ -175,6 +175,9 @@
+ {indent}    deps = [
+ {indent}        {deps}
+ {indent}    ]{extra_deps}{conditional_deps},
++{indent}    proc_macro_deps = [
++{indent}        {proc_macro_deps}
++{indent}    ],
+ {indent}    data = [
+ {indent}        {data}
+ {indent}    ],
+@@ -217,6 +220,7 @@
+     build_script_tools, conditional_build_script_tools = render_select(attr.build_script_tools, attr.build_script_tools_select, use_legacy_rules_rust_platforms)
+     rustc_flags, conditional_rustc_flags = render_select(attr.rustc_flags, attr.rustc_flags_select, use_legacy_rules_rust_platforms)
+     deps, conditional_deps = render_select(attr.deps + bazel_metadata.get("deps", []), attr.deps_select, use_legacy_rules_rust_platforms)
++    proc_macro_deps = [str(dep) for dep in attr.proc_macro_deps]
+ 
+     conditional_build_script_env = render_select_build_script_env(attr.build_script_env_select, use_legacy_rules_rust_platforms)
+ 
+@@ -245,6 +249,7 @@
+         version = values["version"],
+         aliases = list_indent.join(['"%s": "%s"' % kv for kv in attr.aliases.items()]),
+         deps = list_indent.join(['"%s"' % d for d in sorted(deps)]),
++        proc_macro_deps = list_indent.join(['"%s"' % d for d in sorted(proc_macro_deps)]),
+         extra_deps = extra_deps,
+         conditional_deps = " + " + conditional_deps if conditional_deps else "",
+         data = list_indent.join(['"%s"' % str(d) for d in attr.data]),
+@@ -298,7 +303,7 @@
+ rust_crate_attrs = {
+     "hub_name": attr.string(),
+     "gen_build_script": attr.string(),
+-    "build_script_deps": attr.label_list(),
++    "build_script_deps": attr.string_list(),
+     "build_script_deps_select": _label_list_dict(),
+     "build_script_data": attr.label_list(),
+     "build_script_data_select": _label_list_dict(),
+@@ -314,6 +319,7 @@
+     "crate_tags": attr.string_list(),
+     "data": attr.label_list(),
+     "deps": attr.label_list(),
++    "proc_macro_deps": attr.string_list(),
+     "deps_select": _label_list_dict(),
+     "aliases": attr.string_dict(),
+     "crate_features": attr.string_list(),

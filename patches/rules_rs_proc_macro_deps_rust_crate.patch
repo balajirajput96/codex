@@ -1,0 +1,18 @@
+--- a/rs/rust_crate.bzl
++++ b/rs/rust_crate.bzl
+@@ -21,6 +21,7 @@
+         version,
+         aliases,
+         deps,
++        proc_macro_deps,
+         data,
+         crate_features,
+         triples,
+@@ -185,6 +186,7 @@
+             compile_data = compile_data,
+             aliases = aliases,
+             deps = deps,
++            proc_macro_deps = proc_macro_deps,
+             data = data,
+             crate_features = crate_features + select(
+                 {_platform(k, use_legacy_rules_rust_platforms): v for k, v in conditional_crate_features.items()} |
