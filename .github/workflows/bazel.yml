@@ -136,8 +136,9 @@ jobs:
   test-windows-shard:
     # Split the Windows Bazel test leg across separate Windows hosts. Jobs with
     # BuildBuddy credentials use Linux RBE for build actions; test execution
-    # remains on a Windows runner.
-    # Four local public-fork shards may each compile uncached dependencies.
+    # remains on a Windows runner. Public forks build locally without RBE; four
+    # local shards may each compile uncached dependencies, and a cold gnullvm
+    # shard can exceed 30 minutes before it reaches its tests.
     timeout-minutes: 60
     strategy:
       fail-fast: false
@@ -340,8 +341,9 @@ jobs:
           ignore-paths: ${{ runner.os == 'Windows' && 'MODULE.bazel.lock' || '' }}
 
   clippy:
-    # Keep full cross-platform lint coverage even when public-fork Bazel caches
-    # are cold and upstream RBE credentials are unavailable.
+    # Keep full cross-platform lint coverage when public-fork Bazel caches are
+    # cold and upstream RBE credentials are unavailable; the Windows gnullvm
+    # entry compiles locally and needs enough time for a cold toolchain.
     timeout-minutes: 60
     strategy:
       fail-fast: false
@@ -440,7 +442,8 @@ jobs:
 
   verify-release-build:
     # Release-mode coverage compiles uncached target graphs in public forks;
-    # increase time rather than cancelling the verification.
+    # the Windows gnullvm fallback also compiles locally. Increase the timeout
+    # rather than cancelling a cold-cache verification.
     timeout-minutes: 60
     strategy:
       fail-fast: false
