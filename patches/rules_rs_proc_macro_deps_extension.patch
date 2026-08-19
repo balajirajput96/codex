@@ -1,0 +1,55 @@
+--- a/rs/extensions.bzl
++++ b/rs/extensions.bzl
+@@ -292,6 +292,7 @@
+         feature_resolutions = feature_resolutions_by_fq_crate[_fq_crate(crate_name, version)]
+ 
+         annotation = annotation_for(annotations, crate_name, version, hub_name)
++        proc_macro_deps = annotation.proc_macro_deps
+         suggested_annotation = None
+         if annotation.gen_build_script == "auto":
+             snippet_path = suggested_annotation_snippet_paths.get(crate_name)
+@@ -321,7 +322,8 @@
+         kwargs = dict(
+             hub_name = hub_name,
+             gen_build_script = annotation.gen_build_script,
+-            build_script_deps = [],
++            build_script_deps = annotation.build_script_deps,
++            proc_macro_deps = annotation.proc_macro_deps,
+             build_script_deps_select = _select(feature_resolutions.build_deps),
+             build_script_data = annotation.build_script_data,
+             build_script_data_select = annotation.build_script_data_select,
+@@ -337,7 +339,10 @@
+             data = annotation.data,
+             deps = annotation.deps,
+             crate_tags = annotation.tags,
+-            deps_select = _select(feature_resolutions.deps),
++            deps_select = _select({
++                triple: [dep for dep in deps if dep not in proc_macro_deps]
++                for triple, deps in feature_resolutions.deps.items()
++            }),
+             aliases = feature_resolutions.aliases,
+             crate_features = annotation.crate_features,
+             crate_features_select = _select(feature_resolutions.features_enabled),
+@@ -881,9 +886,9 @@
+         "build_script_data_select": _label_list_dict(
+             doc = "Labels to add to a crate's `cargo_build_script::data` attribute, keyed by platform triplet.",
+         ),
+-        # "build_script_deps": attr.label_list(
+-        #     doc = "A list of labels to add to a crate's `cargo_build_script::deps` attribute.",
+-        # ),
++        "build_script_deps": attr.string_list(
++            doc = "A list of labels to add to a crate's `cargo_build_script::deps` attribute.",
++        ),
+         "build_script_env": attr.string_dict(
+             doc = "Additional environment variables to set on a crate's `cargo_build_script::env` attribute.",
+         ),
+@@ -939,6 +944,9 @@
+         "deps": attr.label_list(
+             doc = "A list of labels to add to a crate's `rust_library::deps` attribute.",
+         ),
++        "proc_macro_deps": attr.string_list(
++            doc = "A list of labels to add to a crate's `rust_library::proc_macro_deps` attribute.",
++        ),
+         "tags": attr.string_list(
+             doc = "A list of tags to add to a crate's generated targets.",
+         ),

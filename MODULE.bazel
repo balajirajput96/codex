@@ -32,6 +32,20 @@ single_version_override(
     version = "0.2.0",
 )
 
+# Expose proc_macro_deps on rules_rs crate annotations so Windows gnullvm
+# includes ctor/dtor host procedural-macro crates in the generated graph.
+single_version_override(
+    module_name = "rules_rs",
+    patch_strip = 1,
+    patches = [
+        "//patches:rules_rs_proc_macro_deps_extension.patch",
+        "//patches:rules_rs_proc_macro_deps_annotations.patch",
+        "//patches:rules_rs_proc_macro_deps_repository_utils.patch",
+        "//patches:rules_rs_proc_macro_deps_rust_crate.patch",
+    ],
+    version = "0.0.96",
+)
+
 # MSVC repository materialization fails closed until a user who has accepted
 # Microsoft's Visual Studio terms explicitly supplies
 # --repo_env=BAZEL_MSVC_RUNTIME_VISUAL_STUDIO_EULA=1. Do not configure that
@@ -161,14 +175,6 @@ single_version_override(
 bazel_dep(name = "rules_platform", version = "0.1.0")
 bazel_dep(name = "aws-lc", version = "5.1.0.bcr.1")
 bazel_dep(name = "rules_rs", version = "0.0.96")
-single_version_override(
-    module_name = "rules_rs",
-    patch_strip = 1,
-    patches = [
-        "//patches:rules_rs_build_script_deps_annotation.patch",
-    ],
-    version = "0.0.96",
-)
 
 rules_rust = use_extension("@rules_rs//rs:rules_rust.bzl", "rules_rust")
 rules_rust.patch(
@@ -306,6 +312,16 @@ register_toolchains("@rules_rust_bindgen//:all")
 register_toolchains("//bazel/toolchains/prost:toolchain")
 
 crate = use_extension("@rules_rs//rs:extensions.bzl", "crate")
+# rules_rs does not infer all host procedural-macro edges on Windows gnullvm.
+# Keep ctor/dtor's proc-macro crates in the host dependency graph explicitly.
+crate.annotation(
+    crate = "ctor",
+    proc_macro_deps = ["@crates//:linktime-proc-macro-0.1.0"],
+)
+crate.annotation(
+    crate = "dtor",
+    proc_macro_deps = ["@crates//:dtor-proc-macro-0.0.6"],
+)
 crate.from_cargo(
     cargo_lock = "//codex-rs:Cargo.lock",
     cargo_toml = "//codex-rs:Cargo.toml",
