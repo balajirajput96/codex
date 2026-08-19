@@ -42,7 +42,9 @@ jobs:
 
   sdks:
     runs-on: ubuntu-24.04
-    timeout-minutes: 10
+    # This aggregate performs a cold Bazel Codex build before package build,
+    # lint, and tests; preserve all coverage and allow public-fork caches time.
+    timeout-minutes: 60
     environment:
       name: bazel
       deployment: false
