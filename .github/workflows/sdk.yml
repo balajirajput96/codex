@@ -95,7 +95,8 @@ jobs:
             --build_metadata=COMMIT_SHA=${GITHUB_SHA} \
             --build_metadata=TAG_job=sdk \
             -- \
-            //codex-rs/cli:codex
+              //codex-rs/cli:codex \
+              //codex-rs/code-mode-host:codex-code-mode-host
 
           # Resolve the exact output file using the same wrapper/config path as
           # the build instead of guessing which Bazel convenience symlink is
@@ -124,13 +125,33 @@ jobs:
             exit 1
           fi
 
-          # Stage the binary into the workspace and point the SDK tests at that
-          # stable path. The tests spawn `codex` directly many times, so using a
-          # normal executable path is more reliable than invoking Bazel for each
-          # test process.
+          code_mode_host_cquery_output="$(
+            ./.github/scripts/run-bazel-ci.sh \
+              -- \
+              cquery \
+              --output=files \
+              -- \
+              //codex-rs/code-mode-host:codex-code-mode-host \
+              | grep -E '^(/|bazel-out/)' \
+              | tail -n 1
+          )"
+          if [[ "${code_mode_host_cquery_output}" = /* ]]; then
+            code_mode_host_bazel_output_path="${code_mode_host_cquery_output}"
+          else
+            code_mode_host_bazel_output_path="${GITHUB_WORKSPACE}/${code_mode_host_cquery_output}"
+          fi
+          if [[ -z "${code_mode_host_bazel_output_path}" || ! -e "${code_mode_host_bazel_output_path}" ]]; then
+            echo "Unable to locate the Bazel-built code-mode host at ${code_mode_host_bazel_output_path}." >&2
+            exit 1
+          fi
+
+          # Stage Codex and its sibling Code Mode helper into the workspace.
+          # The SDK tests spawn Codex repeatedly from this stable release-like
+          # layout instead of invoking Bazel for each test process.
           install_dir="${GITHUB_WORKSPACE}/.tmp/sdk-ci"
           mkdir -p "${install_dir}"
           install -m 755 "${codex_bazel_output_path}" "${install_dir}/codex"
+          install -m 755 "${code_mode_host_bazel_output_path}" "${install_dir}/codex-code-mode-host"
           echo "CODEX_EXEC_PATH=${install_dir}/codex" >> "$GITHUB_ENV"
 
       - name: Warm up Bazel-built codex
