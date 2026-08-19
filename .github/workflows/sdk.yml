@@ -95,42 +95,45 @@ jobs:
             --build_metadata=COMMIT_SHA=${GITHUB_SHA} \
             --build_metadata=TAG_job=sdk \
             -- \
-            //codex-rs/cli:codex
+            //codex-rs/cli:codex \
+            //codex-rs/code-mode-host:codex-code-mode-host
 
-          # Resolve the exact output file using the same wrapper/config path as
-          # the build instead of guessing which Bazel convenience symlink is
-          # available on the runner.
-          cquery_output="$(
-            ./.github/scripts/run-bazel-ci.sh \
-              -- \
-              cquery \
-              --output=files \
-              -- \
-              //codex-rs/cli:codex \
-              | grep -E '^(/|bazel-out/)' \
-              | tail -n 1
-          )"
-          if [[ "${cquery_output}" = /* ]]; then
-            codex_bazel_output_path="${cquery_output}"
-          else
-            codex_bazel_output_path="${GITHUB_WORKSPACE}/${cquery_output}"
-          fi
-          if [[ -z "${codex_bazel_output_path}" ]]; then
-            echo "Bazel did not report an output path for //codex-rs/cli:codex." >&2
-            exit 1
-          fi
-          if [[ ! -e "${codex_bazel_output_path}" ]]; then
-            echo "Unable to locate the Bazel-built codex binary at ${codex_bazel_output_path}." >&2
-            exit 1
-          fi
-
-          # Stage the binary into the workspace and point the SDK tests at that
-          # stable path. The tests spawn `codex` directly many times, so using a
-          # normal executable path is more reliable than invoking Bazel for each
-          # test process.
+          # Resolve and stage both Bazel outputs through the same wrapper/config
+          # path. The SDK invokes `codex` directly, and Code Mode discovers its
+          # required host executable as the adjacent `codex-code-mode-host` file.
           install_dir="${GITHUB_WORKSPACE}/.tmp/sdk-ci"
           mkdir -p "${install_dir}"
-          install -m 755 "${codex_bazel_output_path}" "${install_dir}/codex"
+
+          stage_bazel_binary() {
+            local target="$1"
+            local destination="$2"
+            local cquery_output
+            cquery_output="$(
+              ./.github/scripts/run-bazel-ci.sh \
+                -- \
+                cquery \
+                --output=files \
+                -- \
+                "${target}" \
+                | grep -E '^(/|bazel-out/)' \
+                | tail -n 1
+            )"
+
+            local bazel_output_path
+            if [[ "${cquery_output}" = /* ]]; then
+              bazel_output_path="${cquery_output}"
+            else
+              bazel_output_path="${GITHUB_WORKSPACE}/${cquery_output}"
+            fi
+            if [[ -z "${cquery_output}" || ! -e "${bazel_output_path}" ]]; then
+              echo "Unable to locate the Bazel-built ${target} output at ${bazel_output_path}." >&2
+              exit 1
+            fi
+            install -m 755 "${bazel_output_path}" "${install_dir}/${destination}"
+          }
+
+          stage_bazel_binary "//codex-rs/cli:codex" "codex"
+          stage_bazel_binary "//codex-rs/code-mode-host:codex-code-mode-host" "codex-code-mode-host"
           echo "CODEX_EXEC_PATH=${install_dir}/codex" >> "$GITHUB_ENV"
 
       - name: Warm up Bazel-built codex

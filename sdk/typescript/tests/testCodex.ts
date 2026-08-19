@@ -79,14 +79,12 @@ function mergeTestConfig(
 
   return {
     ...mergedConfig,
-    // Disable optional background features in SDK integration tests: curated
-    // plugin sync races temporary CODEX_HOME cleanup, and Code Mode requires a
-    // companion host binary that standalone SDK fixtures intentionally do not
-    // stage. Dedicated feature tests can still opt in with explicit overrides.
+    // Disable plugins in SDK integration tests so background curated-plugin
+    // sync does not race temporary CODEX_HOME cleanup.
     features:
       featureOverrides && typeof featureOverrides === "object" && !Array.isArray(featureOverrides)
-        ? { ...featureOverrides, plugins: false, code_mode_host: false }
-        : { plugins: false, code_mode_host: false },
+        ? { ...featureOverrides, plugins: false }
+        : { plugins: false },
   };
 }
 
