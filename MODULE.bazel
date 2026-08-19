@@ -323,6 +323,10 @@ crate.annotation(
     crate = "dtor",
     proc_macro_deps = ["@crates//:dtor-proc-macro-0.0.6"],
 )
+crate.annotation(
+    crate = "castaway",
+    proc_macro_deps = ["@crates//:rustversion-1.0.22"],
+)
 crate.from_cargo(
     cargo_lock = "//codex-rs:Cargo.lock",
     cargo_toml = "//codex-rs:Cargo.toml",
