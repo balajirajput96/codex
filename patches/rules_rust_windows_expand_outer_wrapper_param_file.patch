@@ -1,0 +1,43 @@
+--- a/util/process_wrapper/options.rs
++++ b/util/process_wrapper/options.rs
+@@ -51,6 +51,31 @@
+     pub(crate) rustc_output_format: Option<rustc::ErrorFormat>,
+ }
+ 
++fn expand_wrapper_param_files(argv: Vec<String>) -> Result<Vec<String>, OptionError> {
++    let mut expanded = Vec::new();
++    let mut parsing_wrapper_flags = true;
++    for arg in argv {
++        if parsing_wrapper_flags && arg == "--" {
++            parsing_wrapper_flags = false;
++            expanded.push(arg);
++        } else if parsing_wrapper_flags {
++            if let Some(param_file) = arg.strip_prefix('@') {
++                let mut args = read_file_to_array(param_file).map_err(|err| {
++                    OptionError::Generic(format!(
++                        "{err} while expanding wrapper response file {param_file:?}"
++                    ))
++                })?;
++                expanded.append(&mut args);
++            } else {
++                expanded.push(arg);
++            }
++        } else {
++            expanded.push(arg);
++        }
++    }
++    Ok(expanded)
++}
++
+ pub(crate) fn options() -> Result<Options, OptionError> {
+     // Process argument list until -- is encountered.
+     // Everything after is sent to the child process.
+@@ -131,7 +156,7 @@
+     );
+ 
+     let mut child_args = match flags
+-        .parse(env::args().collect())
++        .parse(expand_wrapper_param_files(env::args().collect())?)
+         .map_err(OptionError::FlagError)?
+     {
+         ParseOutcome::Help(help) => {

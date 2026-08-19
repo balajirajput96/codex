@@ -194,6 +194,9 @@ rules_rust.patch(
         # The process wrapper's own env and argument-file options can also
         # exceed CreateProcessW's limit for large Windows test targets.
         "//patches:rules_rust_windows_outer_wrapper_param_file.patch",
+        # Expand that outer response file before parsing wrapper options while
+        # preserving compiler response files after the child-command boundary.
+        "//patches:rules_rust_windows_expand_outer_wrapper_param_file.patch",
     ],
     strip = 1,
 )
