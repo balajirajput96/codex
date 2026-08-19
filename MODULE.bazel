@@ -374,10 +374,6 @@ crate.annotation(
     deps = ["@crates//:rustversion-1.0.22"],
 )
 crate.annotation(
-    crate = "dtor",
-    deps = ["@crates//:dtor-proc-macro-0.0.6"],
-)
-crate.annotation(
     crate = "prost",
     deps = ["@crates//:prost-derive-0.14.3"],
 )
