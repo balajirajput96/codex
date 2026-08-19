@@ -272,10 +272,9 @@ fi
 
 if [[ "${RUNNER_OS:-}" == "Windows" && $windows_cross_compile -eq 1 && -z "${BUILDBUDDY_API_KEY:-}" ]]; then
   # Public forks cannot use the upstream Linux RBE pool. Keep the gnullvm
-  # target ABI while executing proc-macros and helper binaries on the hosted
-  # MSVC platform; target actions still use the hermetic gnullvm toolchain.
+  # target ABI while retaining the hosted MSVC execution platform for helper
+  # binaries and Rust proc-macros.
   ci_config=ci-windows
-  windows_msvc_host_platform=1
 fi
 
 post_config_bazel_args=()
@@ -291,13 +290,16 @@ if [[ "${RUNNER_OS:-}" == "Windows" && $windows_cross_compile -eq 1 && -z "${BUI
   if [[ $has_target_platform_override -eq 0 ]]; then
     post_config_bazel_args+=("--platforms=//:windows_x86_64_gnullvm")
   fi
-  # Without RBE, keep gnullvm target actions on the hermetic LLVM toolchain
-  # while using the hosted MSVC platform for proc-macros and helper binaries.
-  # Do not force an exec-Rustc linker globally: that would pass MSVC flags to
-  # gnullvm clang++ target actions.
+  # Resolve test targets for the gnullvm ABI, but execute their helpers on
+  # the hosted MSVC platform. The repository-wide default disables local C++
+  # auto-detection, so explicitly unset it before selecting the matching
+  # ABI-scoped local toolchain. That wrapper cannot match ordinary gnullvm
+  # target actions, which therefore retain hermetic LLVM.
   post_config_bazel_args+=(
+    "--repo_env==BAZEL_DO_NOT_DETECT_CPP_TOOLCHAIN"
     "--extra_execution_platforms=//:win"
     "--extra_toolchains=//:windows_gnullvm_tests_on_msvc_host_toolchain"
+    "--extra_toolchains=//:windows_msvc_local_cc_toolchain"
   )
 fi
 if [[ "${RUNNER_OS:-}" == "Windows" && $windows_msvc_host_platform -eq 1 ]]; then
