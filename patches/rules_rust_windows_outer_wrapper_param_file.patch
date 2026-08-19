@@ -1,13 +1,15 @@
 --- a/rust/private/rustc.bzl
 +++ b/rust/private/rustc.bzl
-@@ -1100,7 +1100,10 @@
+@@ -1100,7 +1100,12 @@
  
      # Wrapper args first
      process_wrapper_flags = ctx.actions.args()
 -
 +    # The wrapper expands @files itself. Keep its own --env-file/--arg-file
-+    # list below CreateProcessW's command-line limit on Windows.
++    # list below CreateProcessW's command-line limit on Windows. Its parser
++    # reads newline-delimited arguments, so do not use Bazel's shell default.
 +    if toolchain.target_os == "windows":
++        process_wrapper_flags.set_param_file_format("multiline")
 +        process_wrapper_flags.use_param_file("@%s", use_always = True)
      for build_env_file in build_env_files:
          process_wrapper_flags.add("--env-file", build_env_file)
