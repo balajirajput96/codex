@@ -191,6 +191,7 @@ def codex_rust_crate(
         binary_compile_data_extra = {},
         lib_data_extra = [],
         rustc_flags_extra = [],
+        windows_rustc_link_flags = WINDOWS_RUSTC_LINK_FLAGS,
         binary_rustc_flags_extra = {},
         rustc_env = {},
         rustc_env_files = [],
@@ -232,6 +233,10 @@ def codex_rust_crate(
         binary_compile_data_extra: Mapping from binary names to extra non-Rust
             compile-time data for those binary targets.
         lib_data_extra: Extra runtime data for the library target.
+        windows_rustc_link_flags: Platform-selected Rust linker flags applied to
+            generated binaries and tests. Defaults to the repository Windows
+            ABI configuration; crates with a conflicting native link closure
+            may provide a narrower override.
         binary_rustc_flags_extra: Mapping from binary names to extra rustc
             flags for those binary targets.
         rustc_env: Extra rustc_env entries to merge with defaults.
@@ -350,7 +355,7 @@ def codex_rust_crate(
             # `../codex-rs/<crate>/...` paths for `file!()`. Strip either
             # prefix so the workspace-root launcher sees Cargo-like metadata
             # such as `tui/src/...`.
-            rustc_flags = rustc_flags_extra + WINDOWS_RUSTC_LINK_FLAGS + [
+            rustc_flags = rustc_flags_extra + windows_rustc_link_flags + [
                 "--remap-path-prefix=../codex-rs=",
                 "--remap-path-prefix=codex-rs=",
             ],
@@ -396,7 +401,7 @@ def codex_rust_crate(
             # Keep per-binary Cargo link behavior scoped to the matching
             # generated rust_binary instead of leaking it to sibling binaries.
             compile_data = binary_compile_data_extra.get(binary, []),
-            rustc_flags = rustc_flags_extra + binary_rustc_flags_extra.get(binary, []) + WINDOWS_RUSTC_LINK_FLAGS,
+            rustc_flags = rustc_flags_extra + binary_rustc_flags_extra.get(binary, []) + windows_rustc_link_flags,
             # rules_rust substitutes workspace status values only for stamped
             # actions, so pass the existing key through to final binaries.
             rustc_env = {"STABLE_GIT_COMMIT": "{STABLE_GIT_COMMIT}"},
@@ -416,7 +421,7 @@ def codex_rust_crate(
             crate = ":" + binary,
             crate_features = crate_features,
             deps = all_crate_deps(normal_dev = True),
-            rustc_flags = rustc_flags_extra + WINDOWS_RUSTC_LINK_FLAGS + [
+            rustc_flags = rustc_flags_extra + windows_rustc_link_flags + [
                 "--remap-path-prefix=../codex-rs=",
                 "--remap-path-prefix=codex-rs=",
             ],
@@ -546,7 +551,7 @@ def codex_rust_crate(
                 # Bazel has emitted both `codex-rs/<crate>/...` and
                 # `../codex-rs/<crate>/...` paths for `file!()`. Strip either
                 # prefix so Insta records Cargo-like metadata such as `core/tests/...`.
-                rustc_flags = rustc_flags_extra + WINDOWS_RUSTC_LINK_FLAGS + [
+                rustc_flags = rustc_flags_extra + windows_rustc_link_flags + [
                     "--remap-path-prefix=../codex-rs=",
                     "--remap-path-prefix=codex-rs=",
                 ],
@@ -585,7 +590,7 @@ def codex_rust_crate(
                 # Bazel has emitted both `codex-rs/<crate>/...` and
                 # `../codex-rs/<crate>/...` paths for `file!()`. Strip either
                 # prefix so Insta records Cargo-like metadata such as `core/tests/...`.
-                rustc_flags = rustc_flags_extra + WINDOWS_RUSTC_LINK_FLAGS + [
+                rustc_flags = rustc_flags_extra + windows_rustc_link_flags + [
                     "--remap-path-prefix=../codex-rs=",
                     "--remap-path-prefix=codex-rs=",
                 ],
@@ -657,7 +662,7 @@ def codex_rust_crate(
             data = native.glob(["tests/**"], allow_empty = True) + integration_test_binaries + integration_test_data_extra,
             compile_data = native.glob(["tests/**"], allow_empty = True) + integration_compile_data_extra,
             deps = all_crate_deps(normal = True, normal_dev = True) + maybe_deps + deps_extra,
-            rustc_flags = rustc_flags_extra + WINDOWS_RUSTC_LINK_FLAGS + [
+            rustc_flags = rustc_flags_extra + windows_rustc_link_flags + [
                 "--remap-path-prefix=../codex-rs=",
                 "--remap-path-prefix=codex-rs=",
             ],
