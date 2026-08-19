@@ -676,7 +676,10 @@ fn legacy_capture_emits_output_and_preserves_descendant_after_normal_exit() {
 }
 
 #[test]
-#[cfg_attr(all(target_os = "windows", target_env = "gnu"), ignore)]
+#[cfg_attr(
+    all(target_os = "windows", target_env = "gnu"),
+    ignore = "hosted gnullvm does not apply legacy private-desktop filesystem policy"
+)]
 fn legacy_workspace_write_delete_is_limited_to_writable_roots() {
     let _guard = legacy_process_test_guard();
     let runtime = current_thread_runtime();
