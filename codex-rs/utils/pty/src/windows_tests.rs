@@ -343,9 +343,13 @@ async fn conpty_delivers_input_to_foreground_children() -> anyhow::Result<()> {
         .await?;
         let (session, mut output_rx, exit_rx) = combine_spawned_output(spawned);
         let writer = session.writer_sender();
-        wait_for_output_contains(&mut output_rx, shell.prompt_marker, /*timeout_ms*/ 10_000)
-            .await
-            .map_err(|err| anyhow::anyhow!("{} shell did not become ready: {err}", shell.name))?;
+        wait_for_output_contains(
+            &mut output_rx,
+            shell.prompt_marker,
+            /*timeout_ms*/ 10_000,
+        )
+        .await
+        .map_err(|err| anyhow::anyhow!("{} shell did not become ready: {err}", shell.name))?;
         writer
             .send(format!("{}\n", shell.child_command).into_bytes())
             .await?;
