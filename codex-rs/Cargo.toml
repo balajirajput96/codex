@@ -353,8 +353,9 @@ itertools = "0.14.0"
 jsonptr = { version = "0.7.1", default-features = false }
 # Select a single JWT crypto backend for every Bazel and Cargo target. Without
 # this, different dependency graphs can enable zero or multiple providers.
-# AWS-LC is already part of the workspace's hermetic Windows build graph.
-jsonwebtoken = { version = "10.3.0", default-features = false, features = ["aws_lc_rs", "use_pem"] }
+# Use the pure-Rust backend so JWT compilation avoids AWS-LC's native build
+# script on Windows while retaining the HS256 and RS256 algorithms we use.
+jsonwebtoken = { version = "10.3.0", default-features = false, features = ["rust_crypto", "use_pem"] }
 keyring = { version = "3.6", default-features = false }
 landlock = "0.4.4"
 lazy_static = "1"
