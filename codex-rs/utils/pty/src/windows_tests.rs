@@ -386,6 +386,16 @@ async fn conpty_delivers_input_to_foreground_children() -> anyhow::Result<()> {
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn conpty_ctrl_c_interrupts_foreground_child() -> anyhow::Result<()> {
+    // GitHub-hosted Windows runners currently do not reliably translate the
+    // ConPTY input byte `0x03` into a CTRL_C_EVENT for a foreground process.
+    // Keep this integration coverage for local Windows hosts, where it remains
+    // the contract that Codex relies on. See actions/runner#3168 and
+    // deblasis/wintty#155 for independent hosted/AllocConsole reproductions.
+    if std::env::var_os("GITHUB_ACTIONS").is_some() {
+        eprintln!("skipping ConPTY Ctrl-C integration check on GitHub-hosted Windows");
+        return Ok(());
+    }
+
     let program = "cmd.exe".to_string();
     let args = vec!["/D".to_string(), "/Q".to_string()];
     let env: HashMap<String, String> = std::env::vars().collect();
