@@ -262,7 +262,6 @@ nightly_rust.repository_set(
     target_triple = "x86_64-pc-windows-gnullvm",
     versions = ["nightly/2025-09-18"],
 )
-
 use_repo(nightly_rust, "rust_toolchains")
 
 toolchains = use_extension("@rules_rs//rs/toolchains:module_extension.bzl", "toolchains")
