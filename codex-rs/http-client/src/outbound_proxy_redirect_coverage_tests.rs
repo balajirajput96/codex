@@ -208,6 +208,12 @@ fn spawn_failing_listener() -> (std::net::SocketAddr, std::thread::JoinHandle<()
                 Err(error) => panic!("failing listener should accept: {error}"),
             }
         };
+        // Windows may inherit the listener's nonblocking mode on accepted
+        // sockets. The test intentionally waits for the client request, so
+        // restore blocking mode before applying its bounded read timeout.
+        stream
+            .set_nonblocking(false)
+            .expect("failing stream should become blocking");
         stream
             .set_read_timeout(Some(Duration::from_secs(2)))
             .expect("failing stream should get a read timeout");
