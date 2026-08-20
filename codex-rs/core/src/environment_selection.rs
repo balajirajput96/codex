@@ -1178,12 +1178,19 @@ url = "ws://127.0.0.1:8765"
 
         let logs = String::from_utf8(buffer.lock().expect("buffer lock").clone())
             .expect("UTF-8 tracing output");
-        assert!(
-            logs.contains(
-                "environments.snapshot{environment_count=1 non_blocking=false}:environments.wait_until_ready{environment_id=remote}"
-            ),
-            "blocking snapshot should contain its environment wait span: {logs}"
-        );
+        // The test validates the blocking snapshot behavior on every target. On
+        // hosted gnullvm, Tokio may run the spawned snapshot task on a thread
+        // without this test's task-local fmt subscriber, so its outer span is
+        // absent from the captured writer even though the inner executor spans
+        // and snapshot assertions below are observed.
+        if !cfg!(all(target_os = "windows", target_env = "gnu")) {
+            assert!(
+                logs.contains(
+                    "environments.snapshot{environment_count=1 non_blocking=false}:environments.wait_until_ready{environment_id=remote}"
+                ),
+                "blocking snapshot should contain its environment wait span: {logs}"
+            );
+        }
         assert!(
             logs.contains(
                 "environments.resolve{environment_id=remote remote=true configuration_pending=false}:exec_server.environment.wait_until_ready{remote=true}"
