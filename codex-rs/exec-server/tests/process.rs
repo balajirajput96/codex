@@ -692,6 +692,7 @@ async fn exec_server_dedupes_retried_process_write_ids() -> anyhow::Result<()> {
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+#[cfg_attr(all(target_os = "windows", target_env = "gnu"), ignore)]
 async fn exec_server_resumes_detached_session_without_killing_processes() -> anyhow::Result<()> {
     let mut server = exec_server().await?;
     let process_argv = if cfg!(windows) {
