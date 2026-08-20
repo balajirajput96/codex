@@ -133,6 +133,23 @@ fn install_registered_queue(
     Ok(service)
 }
 
+async fn wait_for_queue_empty(
+    queue: &QueuedItemService,
+    thread_id: ThreadId,
+) -> anyhow::Result<()> {
+    tokio::time::timeout(Duration::from_secs(10), async {
+        loop {
+            if queue.list(thread_id).await?.is_empty() {
+                return anyhow::Ok(());
+            }
+            tokio::time::sleep(Duration::from_millis(100)).await;
+        }
+    })
+    .await
+    .context("timed out waiting for queued items to be consumed")??;
+    Ok(())
+}
+
 fn write_rejecting_prompt_hook(home: &Path) {
     let script_path = home.join("queue_prompt_hook.py");
     let log_path = home.join("queue_prompt_hook.log");
@@ -621,7 +638,7 @@ async fn externally_changed_queues_dispatch_independently_and_retry_failed_wakes
         Duration::from_secs(/*secs*/ 25),
     )
     .await;
-    assert!(queue.list(thread_id).await?.is_empty());
+    wait_for_queue_empty(&queue, thread_id).await?;
 
     let prompts = model_responses
         .requests()
