@@ -2025,7 +2025,9 @@ mod tests {
                 cwd: None,
             },
             client_name: "stdio-test-client".to_string(),
-            initialize_timeout: Duration::from_secs(1),
+            // PowerShell startup on Windows gnullvm hosted runners regularly
+            // exceeds one second before it can consume the initialize request.
+            initialize_timeout: Duration::from_secs(10),
             resume_session_id: None,
         })
         .await
