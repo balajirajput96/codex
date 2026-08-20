@@ -4149,6 +4149,7 @@ dependencies = [
  "regex",
  "serde",
  "serde_json",
+ "serial_test",
  "shlex",
  "tree-sitter",
  "tree-sitter-bash",
