@@ -93,6 +93,11 @@ jobs:
         with:
           target: ${{ inputs.target }}
 
+      - name: Configure Codex-built rusty_v8 artifacts
+        uses: ./.github/actions/setup-rusty-v8
+        with:
+          target: ${{ inputs.target }}
+
       - name: Compute lockfile hash
         id: lockhash
         shell: bash
