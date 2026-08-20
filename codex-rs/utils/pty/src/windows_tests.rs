@@ -385,7 +385,10 @@ async fn conpty_delivers_input_to_foreground_children() -> anyhow::Result<()> {
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
-#[cfg_attr(all(target_os = "windows", target_env = "gnu"), ignore)]
+#[cfg_attr(
+    all(target_os = "windows", target_env = "gnu"),
+    ignore = "hosted gnullvm does not reliably deliver ConPTY Ctrl-C events"
+)]
 async fn conpty_ctrl_c_interrupts_foreground_child() -> anyhow::Result<()> {
     // GitHub-hosted Windows runners currently do not reliably translate the
     // ConPTY input byte `0x03` into a CTRL_C_EVENT for a foreground process.

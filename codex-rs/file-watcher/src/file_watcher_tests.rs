@@ -21,6 +21,10 @@ fn notify_event(kind: EventKind, paths: Vec<PathBuf>) -> Event {
 }
 
 #[tokio::test]
+#[cfg_attr(
+    all(target_os = "windows", target_env = "gnu"),
+    ignore = "hosted gnullvm timer scheduling makes this negative-timeout assertion nondeterministic"
+)]
 async fn throttled_receiver_coalesces_within_interval() {
     let (tx, rx) = watch_channel();
     let mut throttled = ThrottledWatchReceiver::new(rx, TEST_THROTTLE_INTERVAL);
