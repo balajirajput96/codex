@@ -87,6 +87,14 @@ jobs:
         with:
           targets: ${{ inputs.target }}
 
+      # Nextest archives include code-mode-runtime and therefore v8. Use the
+      # published Codex archive and matching binding pair directly; rusty-v8's
+      # mirror URL layout does not resolve the ptrcomp sandbox binding.
+      - name: Configure rusty_v8 artifact overrides and verify checksums
+        uses: ./.github/actions/setup-rusty-v8
+        with:
+          target: ${{ inputs.target }}
+
       - name: Expose MSVC SDK environment (Windows)
         if: ${{ runner.os == 'Windows' && inputs.target == 'aarch64-pc-windows-msvc' }}
         uses: ./.github/actions/setup-msvc-env
@@ -165,13 +173,6 @@ jobs:
       - uses: taiki-e/install-action@44c6d64aa62cd779e873306675c7a58e86d6d532 # v2.62.49
         with:
           tool: nextest@0.9.103
-
-      - name: Configure Codex rusty_v8 artifact mirror
-        shell: bash
-        run: |
-          set -euo pipefail
-          version="$(python3 "${GITHUB_WORKSPACE}/.github/scripts/rusty_v8_bazel.py" resolved-v8-crate-version)"
-          echo "RUSTY_V8_MIRROR=https://github.com/openai/codex/releases/download/rusty-v8-v${version}" >> "$GITHUB_ENV"
 
       - name: Enable unprivileged user namespaces (Linux)
         if: runner.os == 'Linux'
