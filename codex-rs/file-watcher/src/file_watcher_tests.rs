@@ -86,7 +86,11 @@ async fn throttled_receiver_flushes_pending_on_shutdown() {
     assert_eq!(closed, None);
 }
 
+// Hosted Windows gnullvm runners can delay the next task poll beyond the
+// half-interval assertion below, making this real-time scheduling probe flaky.
+// Keep behavioral coverage on native Windows and non-Windows targets.
 #[tokio::test]
+#[cfg_attr(all(target_os = "windows", target_env = "gnu"), ignore)]
 async fn debounced_receiver_coalesces_each_event_batch() {
     let (tx, rx) = watch_channel();
     let mut debounced = DebouncedWatchReceiver::new(rx, TEST_THROTTLE_INTERVAL);
