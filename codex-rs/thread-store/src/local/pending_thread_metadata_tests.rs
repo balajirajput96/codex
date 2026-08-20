@@ -75,8 +75,16 @@ async fn pending_rollout_compatible_metadata_does_not_deadlock() {
     let live_thread = LiveThread::create(store.clone(), create_thread_params(thread_id))
         .await
         .expect("create live thread");
+    // Gnullvm runs the Windows SQLite and rollout path with substantially more
+    // process and filesystem overhead than native targets. Keep the deadlock
+    // assertion, but allow a realistic hosted target-specific deadline.
+    let update_timeout = if cfg!(all(target_os = "windows", target_env = "gnu")) {
+        Duration::from_secs(30)
+    } else {
+        Duration::from_secs(5)
+    };
     tokio::time::timeout(
-        Duration::from_secs(5),
+        update_timeout,
         live_thread.update_metadata(
             ThreadMetadataPatch {
                 model: Some("updated-model".to_string()),
