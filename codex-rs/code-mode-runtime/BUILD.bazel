@@ -11,6 +11,13 @@ CODE_MODE_RUNTIME_WINDOWS_RUSTC_LINK_FLAGS = select({
     "@llvm//constraints/windows/abi:msvc": [
         "-C",
         "link-arg=/STACK:8388608",  # 8 MiB
+        # rusty_v8 embeds Chromium's allocator shim, which intentionally
+        # overrides UCRT allocation symbols. A native MSVC link otherwise
+        # imports dynamic ucrt.lib from a transitive C dependency and turns
+        # those overrides into LNK2005 duplicates. Scope this exclusion to the
+        # V8 consumer; do not reintroduce a global CRT override.
+        "-C",
+        "link-arg=/NODEFAULTLIB:ucrt.lib",
     ],
     "//conditions:default": [],
 })

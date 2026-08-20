@@ -329,6 +329,10 @@ if [[ "${RUNNER_OS:-}" == "Windows" && $windows_msvc_host_platform -eq 1 ]]; the
   post_config_bazel_args+=(
     "--repo_env==BAZEL_DO_NOT_DETECT_CPP_TOOLCHAIN"
     "--extra_toolchains=//:windows_msvc_local_cc_toolchain"
+    # Local public-fork runs intentionally omit --config=ci-windows because
+    # that configuration enables remote CI settings. Preserve its documented
+    # hosted-runner test exclusions explicitly for the native local path.
+    "--test_env=CODEX_BAZEL_TEST_SKIP_FILTERS=suite::code_mode::code_mode_can_call_hidden_dynamic_tools,tests::windows_tests::conpty_ctrl_c_interrupts_foreground_child"
   )
 fi
 
