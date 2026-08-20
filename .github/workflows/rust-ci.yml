@@ -213,6 +213,8 @@ jobs:
       - name: Check for a clean worktree
         if: always() && !cancelled() && steps.argument_comment_lint_gate.outputs.run == 'true'
         uses: ./.github/actions/check-clean-worktree
+        with:
+          ignore-paths: ${{ runner.os == 'Windows' && 'MODULE.bazel.lock' || '' }}
 
   # --- Gatherer job that you mark as the ONLY required status -----------------
   results:
