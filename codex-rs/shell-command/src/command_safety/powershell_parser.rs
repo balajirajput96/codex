@@ -266,7 +266,10 @@ fn kill_child(child: &mut Child) {
     let _ = child.wait();
 }
 
-#[cfg(all(test, windows))]
+// The long-lived PowerShell parser process does not terminate reliably through
+// the gnullvm process layer on hosted Windows runners. These integration tests
+// remain covered on native Windows, where that process model is supported.
+#[cfg(all(test, windows, not(target_env = "gnu")))]
 mod tests {
     use super::*;
     use crate::powershell::try_find_powershell_executable_blocking;
