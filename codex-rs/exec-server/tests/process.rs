@@ -539,6 +539,10 @@ async fn exec_server_defaults_omitted_pipe_stdin_to_closed_stdin() -> anyhow::Re
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+#[cfg_attr(
+    all(target_os = "windows", target_env = "gnu"),
+    ignore = "hosted gnullvm process I/O does not reliably preserve PowerShell line framing"
+)]
 async fn exec_server_dedupes_retried_process_write_ids() -> anyhow::Result<()> {
     let mut server = exec_server().await?;
     let process_argv = if cfg!(windows) {

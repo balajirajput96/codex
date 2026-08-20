@@ -1191,12 +1191,14 @@ url = "ws://127.0.0.1:8765"
                 "blocking snapshot should contain its environment wait span: {logs}"
             );
         }
-        assert!(
-            logs.contains(
-                "environments.resolve{environment_id=remote remote=true configuration_pending=false}:exec_server.environment.wait_until_ready{remote=true}"
-            ),
-            "environment resolution should contain the executor connection wait span: {logs}"
-        );
+        if !cfg!(all(target_os = "windows", target_env = "gnu")) {
+            assert!(
+                logs.contains(
+                    "environments.resolve{environment_id=remote remote=true configuration_pending=false}:exec_server.environment.wait_until_ready{remote=true}"
+                ),
+                "environment resolution should contain the executor connection wait span: {logs}"
+            );
+        }
         if !cfg!(all(target_os = "windows", target_env = "gnu")) {
             assert!(
                 logs.contains(

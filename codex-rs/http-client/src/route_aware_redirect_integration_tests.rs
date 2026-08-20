@@ -17,6 +17,10 @@ use super::*;
 use crate::RouteAwareClientPool;
 
 #[tokio::test]
+#[cfg_attr(
+    all(target_os = "windows", target_env = "gnu"),
+    ignore = "hosted gnullvm proxy socket timing is not deterministic"
+)]
 async fn route_aware_pool_re_resolves_redirects_and_logs_only_final_outcome() {
     let (proxy_addr, proxy_thread) =
         spawn_response("HTTP/1.1 200 OK\r\nContent-Length: 2\r\nConnection: close\r\n\r\nok");

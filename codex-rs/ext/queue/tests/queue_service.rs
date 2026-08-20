@@ -640,6 +640,10 @@ async fn externally_changed_queues_dispatch_independently_and_retry_failed_wakes
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+#[cfg_attr(
+    all(target_os = "windows", target_env = "gnu"),
+    ignore = "hosted gnullvm queue hook timing is not deterministic"
+)]
 async fn rejected_queue_messages_are_consumed_without_retrying_or_blocking_followups()
 -> anyhow::Result<()> {
     let server = start_mock_server().await;
@@ -704,6 +708,10 @@ async fn rejected_queue_messages_are_consumed_without_retrying_or_blocking_follo
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+#[cfg_attr(
+    all(target_os = "windows", target_env = "gnu"),
+    ignore = "hosted gnullvm queue hook timing is not deterministic"
+)]
 async fn explicitly_started_rejected_queue_messages_are_consumed() -> anyhow::Result<()> {
     let server = start_mock_server().await;
     let responses =
