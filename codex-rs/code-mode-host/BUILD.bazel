@@ -1,6 +1,29 @@
 load("//:defs.bzl", "codex_rust_crate")
 
+# `code-mode-host` links rusty_v8 through the runtime stack. Native MSVC needs
+# the same carefully scoped allocator/UCRT closure as `code-mode-runtime`: V8
+# owns its allocator shim, while the rest of the crate closure still requires
+# the dynamic UCRT import library.
+CODE_MODE_HOST_WINDOWS_RUSTC_LINK_FLAGS = select({
+    "@llvm//constraints/windows/abi:gnullvm": [
+        "-C",
+        "link-arg=-Wl,--stack,8388608",  # 8 MiB
+    ],
+    "@llvm//constraints/windows/abi:msvc": [
+        "-C",
+        "link-arg=/STACK:8388608",  # 8 MiB
+        "-C",
+        "link-arg=/NODEFAULTLIB:libucrt.lib",
+        "-C",
+        "link-arg=ucrt.lib",
+        "-C",
+        "link-arg=/FORCE:MULTIPLE",
+    ],
+    "//conditions:default": [],
+})
+
 codex_rust_crate(
     name = "code-mode-host",
     crate_name = "codex_code_mode_host",
+    windows_rustc_link_flags = CODE_MODE_HOST_WINDOWS_RUSTC_LINK_FLAGS,
 )
