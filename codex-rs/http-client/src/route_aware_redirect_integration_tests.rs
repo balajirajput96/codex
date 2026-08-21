@@ -133,7 +133,10 @@ fn read_http_headers(stream: &mut impl Read) -> String {
             // listener can report WouldBlock before the client sends headers.
             // Treat it like the configured read timeout and retry briefly.
             Err(error)
-                if matches!(error.kind(), io::ErrorKind::WouldBlock | io::ErrorKind::TimedOut) =>
+                if matches!(
+                    error.kind(),
+                    io::ErrorKind::WouldBlock | io::ErrorKind::TimedOut
+                ) =>
             {
                 assert!(Instant::now() < deadline, "HTTP headers timed out: {error}");
                 std::thread::sleep(Duration::from_millis(10));
