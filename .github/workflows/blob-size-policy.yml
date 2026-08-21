@@ -34,6 +34,13 @@ jobs:
             head='${{ github.sha }}'
           fi
 
+          # A force update can make `github.event.before` unreachable from the
+          # current branch refs even after a full checkout. Fetch that exact
+          # commit so the policy always evaluates the event's intended range.
+          if ! git cat-file -e "$base^{commit}" 2>/dev/null; then
+            git fetch --no-tags --depth=1 origin "$base"
+          fi
+
           echo "base=$base" >> "$GITHUB_OUTPUT"
           echo "head=$head" >> "$GITHUB_OUTPUT"
 
