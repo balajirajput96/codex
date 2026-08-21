@@ -506,6 +506,7 @@ async fn strict_auto_review_turn_grant_forces_guardian_for_shell_command_policy_
     );
     #[allow(deprecated)]
     let workdir = Some(turn_context.cwd.to_string_lossy().to_string());
+    let expiration_ms: u64 = if cfg!(windows) { 2_500 } else { 1_000 };
     let step_context = StepContext::for_test(Arc::clone(&turn_context));
     let resp = handler
         .handle(ToolInvocation {
@@ -522,7 +523,7 @@ async fn strict_auto_review_turn_grant_forces_guardian_for_shell_command_policy_
                     "command": "echo hi",
                     "login": false,
                     "workdir": workdir,
-                    "timeout_ms": 1_000_u64,
+                    "timeout_ms": expiration_ms,
                 })
                 .to_string(),
             },
