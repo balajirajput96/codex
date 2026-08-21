@@ -24,4 +24,10 @@ codex_rust_crate(
         "app-server-unit-tests": 8,
     },
     test_tags = ["no-sandbox"],
+    # App-server integration tests mutate process-global test configuration.
+    # Keep Bazel shard parallelism while serializing threads inside each native
+    # Windows test process.
+    windows_test_env = {
+        "RUST_TEST_THREADS": "1",
+    },
 )
