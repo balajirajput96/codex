@@ -20,9 +20,9 @@ jobs:
     # signal without putting PR latency back on the critical path. When
     # Code-mode unit tests run on every Bazel target. When authenticated RBE
     # is available, the Windows-cross shards exercise the source-built V8 path.
-    # Public forks run without upstream RBE credentials; retain the full test
-    # matrix but allow cold Bazel builds enough time to complete.
-    timeout-minutes: 120
+    # Public forks run without upstream RBE credentials; cold Linux Bazel
+    # graphs have empirically exceeded the former 120-minute limit.
+    timeout-minutes: 180
     strategy:
       fail-fast: false
       matrix:
@@ -341,8 +341,9 @@ jobs:
 
   clippy:
     # Keep full cross-platform lint coverage even when public-fork Bazel caches
-    # are cold and upstream RBE credentials are unavailable.
-    timeout-minutes: 120
+    # are cold and upstream RBE credentials are unavailable. Cold Linux
+    # clippy runs have empirically exceeded the former 120-minute limit.
+    timeout-minutes: 180
     strategy:
       fail-fast: false
       matrix:
@@ -440,8 +441,8 @@ jobs:
 
   verify-release-build:
     # Release-mode coverage compiles uncached target graphs in public forks;
-    # increase time rather than cancelling the verification.
-    timeout-minutes: 120
+    # give cold Linux graphs the same bounded 180-minute budget as test/lint.
+    timeout-minutes: 180
     strategy:
       fail-fast: false
       matrix:
