@@ -542,12 +542,15 @@ async fn exec_server_defaults_omitted_pipe_stdin_to_closed_stdin() -> anyhow::Re
 async fn exec_server_dedupes_retried_process_write_ids() -> anyhow::Result<()> {
     let mut server = exec_server().await?;
     let process_argv = if cfg!(windows) {
+        // cmd.exe consumes redirected stdin deterministically under both the
+        // native MSVC and gnullvm Windows ABIs. PowerShell's Console.In reader
+        // can observe an empty pipe on the gnullvm hosted test path.
         vec![
-            "powershell.exe",
-            "-NoProfile",
-            "-NonInteractive",
-            "-Command",
-            "[Console]::Out.WriteLine('line:' + [Console]::In.ReadLine()); [Console]::Out.WriteLine('line:' + [Console]::In.ReadLine())",
+            "cmd.exe",
+            "/D",
+            "/V:ON",
+            "/C",
+            "set /p first=& echo line:!first!& set /p second=& echo line:!second!",
         ]
     } else {
         vec![
