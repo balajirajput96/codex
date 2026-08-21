@@ -195,6 +195,7 @@ def codex_rust_crate(
         integration_test_timeout = None,
         test_data_extra = [],
         test_shard_counts = {},
+        windows_test_env = {},
         test_tags = [],
         unit_test_timeout = None,
         extra_binaries = [],
@@ -249,6 +250,9 @@ def codex_rust_crate(
             and then assigns each libtest case to a stable bucket by hashing
             the test name. Matching tests are also marked flaky, which gives
             them Bazel's default three attempts.
+        windows_test_env: Extra runtime environment for generated test wrappers
+            on native Windows. Use this for process-global native dependencies
+            while preserving Bazel shard-level parallelism.
         test_tags: Tags applied to unit + integration test targets.
             Typically used to disable the sandbox, but see https://bazel.build/reference/be/common-definitions#common.tags
         unit_test_timeout: Optional Bazel timeout for the unit-test target
@@ -262,13 +266,17 @@ def codex_rust_crate(
             Wine-exec variant for each integration test. Variants inherit the
             native test's timeout, tags, and shard count.
     """
-    test_env = {
+    base_test_env = {
         # The launcher resolves an absolute workspace root at runtime so
         # manifest-only platforms like macOS still point Insta at the real
         # `codex-rs` checkout.
         "INSTA_WORKSPACE_ROOT": ".",
         "INSTA_SNAPSHOT_PATH": "src",
     }
+    test_env = select({
+        "@platforms//os:windows": base_test_env | windows_test_env,
+        "//conditions:default": base_test_env,
+    })
 
     native.filegroup(
         name = "package-files",

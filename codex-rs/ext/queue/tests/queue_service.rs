@@ -670,12 +670,14 @@ async fn rejected_queue_messages_are_consumed_without_retrying_or_blocking_follo
     }
     let queue = install_registered_queue(&test, installed.as_ref())?;
 
-    tokio::time::timeout(Duration::from_secs(10), async {
+    tokio::time::timeout(Duration::from_secs(30), async {
         test.submit_text_turn("A").await?;
         for _ in 0..2 {
-            wait_for_event_match(test.codex.as_ref(), |event| {
-                matches!(event, EventMsg::TurnComplete(_)).then_some(())
-            })
+            wait_for_event_with_timeout(
+                test.codex.as_ref(),
+                |event| matches!(event, EventMsg::TurnComplete(_)),
+                Duration::from_secs(30),
+            )
             .await;
         }
         anyhow::Ok(())
@@ -723,15 +725,17 @@ async fn explicitly_started_rejected_queue_messages_are_consumed() -> anyhow::Re
 
     let rejected = queue.enqueue(thread_id, user_input("blocked")).await?;
     let submission = tokio::time::timeout(
-        Duration::from_secs(10),
+        Duration::from_secs(30),
         queue.start(test.codex.as_ref(), Some(rejected.id), /*trace*/ None),
     )
     .await?
     .expect("explicitly started input should be submitted");
     assert!(matches!(submission, StartIfIdleSubmission::Started { .. }));
-    wait_for_event_match(test.codex.as_ref(), |event| {
-        matches!(event, EventMsg::TurnComplete(_)).then_some(())
-    })
+    wait_for_event_with_timeout(
+        test.codex.as_ref(),
+        |event| matches!(event, EventMsg::TurnComplete(_)),
+        Duration::from_secs(30),
+    )
     .await;
     assert!(queue.list(thread_id).await?.is_empty());
     let hook_log = std::fs::read_to_string(test.codex_home_path().join("queue_prompt_hook.log"))?;

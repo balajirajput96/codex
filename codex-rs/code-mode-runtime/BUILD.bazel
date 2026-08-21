@@ -30,5 +30,8 @@ CODE_MODE_RUNTIME_WINDOWS_RUSTC_LINK_FLAGS = select({
 codex_rust_crate(
     name = "code-mode-runtime",
     crate_name = "codex_code_mode_runtime",
+    # V8's sandbox-backed configurable pool is process-global. Keep the Rust
+    # unit test process single-threaded so test cases cannot race V8 setup.
+    unit_test_args = ["--test-threads=1"],
     windows_rustc_link_flags = CODE_MODE_RUNTIME_WINDOWS_RUSTC_LINK_FLAGS,
 )

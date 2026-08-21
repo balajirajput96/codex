@@ -50,4 +50,9 @@ codex_rust_crate(
     },
     test_tags = ["no-sandbox"],
     unit_test_timeout = "long",
+    # Keep cross-process shard parallelism while avoiding shared test-process
+    # state races in native Windows integration tests.
+    windows_test_env = {
+        "RUST_TEST_THREADS": "1",
+    },
 )
