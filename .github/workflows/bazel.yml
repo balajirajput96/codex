@@ -22,7 +22,7 @@ jobs:
     # is available, the Windows-cross shards exercise the source-built V8 path.
     # Public forks run without upstream RBE credentials; retain the full test
     # matrix but allow cold Bazel builds enough time to complete.
-    timeout-minutes: 60
+    timeout-minutes: 120
     strategy:
       fail-fast: false
       matrix:
@@ -138,7 +138,7 @@ jobs:
     # BuildBuddy credentials use Linux RBE for build actions; test execution
     # remains on a Windows runner.
     # Four local public-fork shards may each compile uncached dependencies.
-    timeout-minutes: 60
+    timeout-minutes: 120
     strategy:
       fail-fast: false
       matrix:
@@ -263,7 +263,7 @@ jobs:
     # on a cold public-fork cache. Run this only post-merge and preserve all
     # coverage while allowing sufficient completion time.
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
-    timeout-minutes: 60
+    timeout-minutes: 120
     runs-on: windows-latest
     name: Bazel test on windows-latest for x86_64-pc-windows-msvc (native main)
     environment:
@@ -342,7 +342,7 @@ jobs:
   clippy:
     # Keep full cross-platform lint coverage even when public-fork Bazel caches
     # are cold and upstream RBE credentials are unavailable.
-    timeout-minutes: 60
+    timeout-minutes: 120
     strategy:
       fail-fast: false
       matrix:
@@ -441,7 +441,7 @@ jobs:
   verify-release-build:
     # Release-mode coverage compiles uncached target graphs in public forks;
     # increase time rather than cancelling the verification.
-    timeout-minutes: 60
+    timeout-minutes: 120
     strategy:
       fail-fast: false
       matrix:
