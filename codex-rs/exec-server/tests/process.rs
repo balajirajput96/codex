@@ -542,16 +542,11 @@ async fn exec_server_defaults_omitted_pipe_stdin_to_closed_stdin() -> anyhow::Re
 async fn exec_server_dedupes_retried_process_write_ids() -> anyhow::Result<()> {
     let mut server = exec_server().await?;
     let process_argv = if cfg!(windows) {
-        // cmd.exe consumes redirected stdin deterministically under both the
-        // native MSVC and gnullvm Windows ABIs. PowerShell's Console.In reader
-        // can observe an empty pipe on the gnullvm hosted test path.
-        vec![
-            "cmd.exe",
-            "/D",
-            "/V:ON",
-            "/C",
-            "set /p first=& echo line:!first!& set /p second=& echo line:!second!",
-        ]
+        // Use a native line filter instead of PowerShell or `cmd.exe set /p`.
+        // The former can buffer a redirected pipe under the GNU runner, while
+        // the latter can interpret a later piped line as command input. The
+        // filter makes duplicate delivery observable as duplicate output.
+        vec!["more.com"]
     } else {
         vec![
             "/bin/sh",
@@ -677,17 +672,20 @@ async fn exec_server_dedupes_retried_process_write_ids() -> anyhow::Result<()> {
                 .flat_map(|chunk| chunk.chunk.into_inner()),
         );
         after_seq = Some(read_response.next_seq.saturating_sub(1));
-        if read_response.closed
-            || output.ends_with(b"line:second\n")
-            || output.ends_with(b"line:second\r\n")
+        if read_response.closed || output.ends_with(b"second\n") || output.ends_with(b"second\r\n")
         {
             break;
         }
     }
 
+    let expected_output = if cfg!(windows) {
+        "first\nsecond\n"
+    } else {
+        "line:first\nline:second\n"
+    };
     assert_eq!(
         String::from_utf8(output)?.replace("\r\n", "\n"),
-        "line:first\nline:second\n".to_string()
+        expected_output
     );
 
     server.shutdown().await?;
