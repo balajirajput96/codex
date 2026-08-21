@@ -12,13 +12,15 @@ CODE_MODE_RUNTIME_WINDOWS_RUSTC_LINK_FLAGS = select({
         "-C",
         "link-arg=/STACK:8388608",  # 8 MiB
         # rusty_v8 embeds Chromium's allocator shim. Suppress the static
-        # libucrt default that can cause allocator duplicate symbols, while
-        # explicitly retaining the dynamic UCRT import library needed by
-        # AWS-LC, zstd, and the rest of this Rust test closure.
+        # libucrt default, retain the dynamic UCRT import library required by
+        # AWS-LC and zstd, and retain V8's allocator definitions when both
+        # archives export the four heap entry points.
         "-C",
         "link-arg=/NODEFAULTLIB:libucrt.lib",
         "-C",
         "link-arg=ucrt.lib",
+        "-C",
+        "link-arg=/FORCE:MULTIPLE",
     ],
     "//conditions:default": [],
 })
