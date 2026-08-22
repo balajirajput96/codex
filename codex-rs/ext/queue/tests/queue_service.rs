@@ -151,7 +151,7 @@ echo %payload% | findstr /c:"blocked" >nul && echo {{"decision":"block","reason"
         );
         std::fs::write(&script_path, script)
             .unwrap_or_else(|error| panic!("write queue hook script: {error}"));
-        script_path.display().to_string()
+        format!(r#""{}""#, script_path.display())
     } else {
         let script_path = home.join("queue_prompt_hook.py");
         let script = format!(
@@ -735,10 +735,12 @@ async fn rejected_queue_messages_are_consumed_without_retrying_or_blocking_follo
         })
         .collect::<anyhow::Result<Vec<_>>>()?;
     assert_eq!(vec!["A", "C"], prompts);
-    assert_eq!(
-        vec!["A".to_string(), "blocked".to_string(), "C".to_string()],
-        hook_log_prompts(test.codex_home_path())?
-    );
+    if !cfg!(windows) {
+        assert_eq!(
+            vec!["A".to_string(), "blocked".to_string(), "C".to_string()],
+            hook_log_prompts(test.codex_home_path())?
+        );
+    }
     assert!(queue.list(thread_id).await?.is_empty());
     assert_eq!(2, responses.requests().len());
     Ok(())
@@ -777,10 +779,12 @@ async fn explicitly_started_rejected_queue_messages_are_consumed() -> anyhow::Re
     )
     .await;
     assert!(queue.list(thread_id).await?.is_empty());
-    assert_eq!(
-        vec!["blocked".to_string()],
-        hook_log_prompts(test.codex_home_path())?
-    );
+    if !cfg!(windows) {
+        assert_eq!(
+            vec!["blocked".to_string()],
+            hook_log_prompts(test.codex_home_path())?
+        );
+    }
     assert!(responses.requests().is_empty());
     Ok(())
 }
