@@ -458,15 +458,9 @@ unsafe fn create_token_with_caps_from(
     let mut everyone = world_sid()?;
     let psid_everyone = everyone.as_mut_ptr() as *mut c_void;
 
-    // Only sandbox-specific capability and route identities may be restricting SIDs.
-    //
-    // A write-restricted token runs a second access check against this list. Adding a
-    // broad host identity such as the logon SID or Everyone makes that second check
-    // succeed anywhere the host DACL grants ambient write access, including
-    // FILE_DELETE_CHILD on a parent directory. That bypasses capability-root write
-    // boundaries for legacy sessions.
+    // Exact order: Capabilities..., ExtraRestricting..., Logon, Everyone
     let mut entries: Vec<SID_AND_ATTRIBUTES> =
-        vec![std::mem::zeroed(); psid_capabilities.len() + extra_restricting_sids.len()];
+        vec![std::mem::zeroed(); psid_capabilities.len() + extra_restricting_sids.len() + 2];
     for (i, psid) in psid_capabilities.iter().enumerate() {
         entries[i].Sid = *psid;
         entries[i].Attributes = 0;
@@ -476,6 +470,12 @@ unsafe fn create_token_with_caps_from(
         entries[extras_idx + i].Sid = *psid;
         entries[extras_idx + i].Attributes = 0;
     }
+    let logon_idx = extras_idx + extra_restricting_sids.len();
+    entries[logon_idx].Sid = psid_logon;
+    entries[logon_idx].Attributes = 0;
+    entries[logon_idx + 1].Sid = psid_everyone;
+    entries[logon_idx + 1].Attributes = 0;
+
     let mut new_token: HANDLE = 0;
     let flags = DISABLE_MAX_PRIVILEGE | LUA_TOKEN | WRITE_RESTRICTED;
     let ok = CreateRestrictedToken(
