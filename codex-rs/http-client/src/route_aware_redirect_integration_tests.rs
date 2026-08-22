@@ -102,6 +102,12 @@ fn spawn_response(
                 Err(error) => panic!("HTTP listener should accept: {error}"),
             }
         };
+        // A socket accepted from a nonblocking listener can remain nonblocking on
+        // Windows. Restore blocking mode before applying the bounded read timeout
+        // so transient `WouldBlock` does not race a request that has connected.
+        stream
+            .set_nonblocking(false)
+            .expect("restore blocking mode for request read");
         stream
             .set_read_timeout(Some(Duration::from_secs(2)))
             .expect("read timeout");
