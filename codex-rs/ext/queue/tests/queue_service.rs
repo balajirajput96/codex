@@ -141,12 +141,13 @@ fn write_rejecting_prompt_hook(home: &Path) {
         // shared test can decode the prompt below.
         let script_path = home.join("queue_prompt_hook.cmd");
         let script = format!(
-            r#"@echo off
-setlocal
-set /p payload=
->>"{log_path}" echo %payload%
-echo %payload% | findstr /c:"blocked" >nul && echo {{"decision":"block","reason":"blocked by queue hook"}}
-"#,
+            concat!(
+                "@echo off\r\n",
+                "setlocal\r\n",
+                "for /f \"usebackq delims=\" %%A in (`more.com`) do set \"payload=%%A\"\r\n",
+                ">>\"{log_path}\" echo %payload%\r\n",
+                "echo %payload% | findstr /c:\"blocked\" >nul && echo {{\"decision\":\"block\",\"reason\":\"blocked by queue hook\"}}\r\n",
+            ),
             log_path = log_path.display(),
         );
         std::fs::write(&script_path, script)

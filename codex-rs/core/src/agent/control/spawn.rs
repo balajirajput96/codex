@@ -25,6 +25,8 @@ struct SpawnAgentThreadInheritance {
 enum SpawnInitialInput {
     UserInput(Vec<UserInput>),
     InterAgentCommunication(InterAgentCommunication, AgentCommunicationContext),
+    #[cfg(test)]
+    HistoryInspection,
 }
 
 fn default_agent_nickname_list() -> Vec<&'static str> {
@@ -231,6 +233,22 @@ impl AgentControl {
         Box::pin(self.spawn_agent_internal(
             config,
             SpawnInitialInput::UserInput(initial_input),
+            session_source,
+            options,
+        ))
+        .await
+    }
+
+    #[cfg(test)]
+    pub(crate) async fn spawn_agent_for_history_inspection(
+        &self,
+        config: Config,
+        session_source: Option<SessionSource>,
+        options: SpawnAgentOptions,
+    ) -> CodexResult<LiveAgent> {
+        Box::pin(self.spawn_agent_internal(
+            config,
+            SpawnInitialInput::HistoryInspection,
             session_source,
             options,
         ))
@@ -570,6 +588,8 @@ impl AgentControl {
                 )
                 .await?;
             }
+            #[cfg(test)]
+            SpawnInitialInput::HistoryInspection => {}
         }
         if multi_agent_version != MultiAgentVersion::V2 {
             let child_reference = agent_metadata

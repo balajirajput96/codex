@@ -125,7 +125,9 @@ async fn plaintext_hostname_redirects_are_rejected_before_dns_can_rebind() -> an
 #[tokio::test]
 async fn same_origin_redirects_enforce_shared_timeout_and_hop_limit() {
     for (delay, timeout_ms, expected_error, expected_requests) in [
-        (Duration::from_millis(100), 175, "timed out", 2),
+        // Leave ample scheduling margin for the second redirect, while keeping the
+        // shared timeout below the two-hop completion time so a third request cannot start.
+        (Duration::from_millis(150), 275, "timed out", 2),
         (Duration::ZERO, 5_000, "redirect limit", MAX_REDIRECTS + 1),
     ] {
         let recorder = Arc::new(RecordingRedirectHttpClient {

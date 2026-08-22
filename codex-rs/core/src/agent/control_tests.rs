@@ -2458,9 +2458,8 @@ async fn spawn_agent_fork_last_n_turns_strips_parent_usage_hints() {
 
     let child_thread_id = harness
         .control
-        .spawn_agent_with_metadata(
+        .spawn_agent_for_history_inspection(
             child_config,
-            text_input("child task"),
             Some(SessionSource::SubAgent(SubAgentSource::ThreadSpawn {
                 parent_thread_id,
                 depth: 1,
