@@ -275,6 +275,7 @@ mod tests {
     use crate::powershell::try_find_powershell_executable_blocking;
     use pretty_assertions::assert_eq;
 
+    #[serial_test::serial(powershell_parser_process)]
     #[test]
     fn parser_process_handles_multiple_requests() {
         let Some(powershell) = try_find_powershell_executable_blocking() else {
@@ -302,6 +303,7 @@ mod tests {
         );
     }
 
+    #[serial_test::serial(powershell_parser_process)]
     #[test]
     fn parser_process_rejects_stop_parsing_forms() {
         let Some(powershell) = try_find_powershell_executable_blocking() else {
@@ -316,6 +318,7 @@ mod tests {
         assert_eq!(parsed, PowershellParseOutcome::Unsupported);
     }
 
+    #[serial_test::serial(powershell_parser_process)]
     #[test]
     fn parser_process_rejects_param_blocks() {
         let Some(powershell) = try_find_powershell_executable_blocking() else {
@@ -330,6 +333,7 @@ mod tests {
         assert_eq!(parsed, PowershellParseOutcome::Unsupported);
     }
 
+    #[serial_test::serial(powershell_parser_process)]
     #[test]
     fn parser_process_rejects_named_blocks() {
         let Some(powershell) = try_find_powershell_executable_blocking() else {
@@ -344,6 +348,7 @@ mod tests {
         assert_eq!(parsed, PowershellParseOutcome::Unsupported);
     }
 
+    #[serial_test::serial(powershell_parser_process)]
     #[test]
     fn parser_process_rejects_using_statements() {
         let Some(powershell) = try_find_powershell_executable_blocking() else {
@@ -358,6 +363,7 @@ mod tests {
         assert_eq!(parsed, PowershellParseOutcome::Unsupported);
     }
 
+    #[serial_test::serial(powershell_parser_process)]
     #[test]
     fn parser_process_rejects_trap_blocks() {
         let Some(powershell) = try_find_powershell_executable_blocking() else {

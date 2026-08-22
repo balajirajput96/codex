@@ -587,7 +587,7 @@ def generate_v2_all(schema_dir: Path) -> None:
                 "3.11",
                 "--use-standard-collections",
                 "--enum-field-as-literal",
-                "one",
+                "none",
                 "--field-constraints",
                 "--use-default-kwarg",
                 "--snake-case-field",
@@ -605,11 +605,23 @@ def generate_v2_all(schema_dir: Path) -> None:
             ],
             cwd=sdk_root(),
         )
+    _ensure_enum_import(out_path)
     _require_nullable_chatgpt_account_email(out_path)
     _preserve_reasoning_effort_enum(out_path)
     _preserve_thread_source_enum(out_path)
     _preserve_plan_type_enum(out_path)
     _normalize_generated_timestamps(out_path)
+
+
+def _ensure_enum_import(out_path: Path) -> None:
+    """Ensure compatibility rewrites can use Enum with newer generator imports."""
+    source = out_path.read_text()
+    if "from enum import Enum" in source:
+        return
+    if "from enum import StrEnum" not in source:
+        return
+    source = source.replace("from enum import StrEnum", "from enum import Enum, StrEnum", 1)
+    out_path.write_text(source)
 
 
 def _require_nullable_chatgpt_account_email(out_path: Path) -> None:
@@ -624,13 +636,21 @@ def _require_nullable_chatgpt_account_email(out_path: Path) -> None:
 
     class_source = source[class_start:class_end]
     nullable_with_default = "    email: str | None = None"
+    required_nullable = "    email: str | None"
+    if (
+        class_source.count(required_nullable) == 1
+        and class_source.count(nullable_with_default) == 0
+    ):
+        # Newer datamodel-code-generator releases already emit the required,
+        # nullable form that the public SDK contract needs.
+        return
     if class_source.count(nullable_with_default) != 1:
         raise RuntimeError(
             "Generated ChatgptAccount email did not have the expected nullable shape"
         )
     class_source = class_source.replace(
         nullable_with_default,
-        "    email: str | None",
+        required_nullable,
         1,
     )
     out_path.write_text(source[:class_start] + class_source + source[class_end:])
@@ -700,6 +720,10 @@ def _preserve_plan_type_enum(out_path: Path) -> None:
     """Keep the public plan constants while accepting values from newer runtimes."""
     source = out_path.read_text()
     class_start = source.find("class PlanType(Enum):")
+    class_header = "class PlanType(Enum):"
+    if class_start == -1:
+        class_start = source.find("class PlanType(StrEnum):")
+        class_header = "class PlanType(StrEnum):"
     if class_start == -1:
         raise RuntimeError("Generated SDK is missing PlanType")
     class_end = source.find("\n\nclass ", class_start)
@@ -708,7 +732,7 @@ def _preserve_plan_type_enum(out_path: Path) -> None:
 
     class_source = source[class_start:class_end]
     class_source = class_source.replace(
-        "class PlanType(Enum):",
+        class_header,
         "class PlanType(str, Enum):",
         1,
     ).rstrip()
