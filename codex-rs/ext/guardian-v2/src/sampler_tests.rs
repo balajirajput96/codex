@@ -20,6 +20,8 @@ use core_test_support::skip_if_no_network;
 use pretty_assertions::assert_eq;
 use serde_json::json;
 use std::sync::Arc;
+use std::sync::atomic::AtomicUsize;
+use std::sync::atomic::Ordering;
 use std::time::Duration;
 use tokio::net::TcpListener;
 use tokio::net::TcpStream;
@@ -27,6 +29,7 @@ use tokio::net::TcpStream;
 use super::LunaSampler;
 use super::LunaSamplerConfig;
 use super::LunaSamplingRequest;
+use super::MAX_SAMPLING_RETRIES;
 use super::MAX_WEBSOCKET_CONNECTIONS;
 
 async fn proxy_websocket_servers(servers: &[&responses::WebSocketTestServer]) -> Result<String> {
@@ -75,6 +78,7 @@ fn sample_request(turn_id: &str) -> LunaSamplingRequest {
     LunaSamplingRequest {
         instructions: "Return a risk score.".to_owned(),
         input: vec!["The user requested a README summary.".to_owned()],
+        images: Vec::new(),
         parent_compaction: None,
         parent_compaction_hash: None,
         output_schema: json!({
@@ -169,6 +173,7 @@ async fn preconnected_sampler_reuses_authenticated_websocket_for_structured_requ
                 "The user requested a README summary.".to_owned(),
                 "The assistant inspected README.md.".to_owned(),
             ],
+            images: Vec::new(),
             parent_compaction: None,
             parent_compaction_hash: None,
             output_schema: schema.clone(),
@@ -192,6 +197,7 @@ async fn preconnected_sampler_reuses_authenticated_websocket_for_structured_requ
         .sample(LunaSamplingRequest {
             instructions: "Return a risk score.".to_owned(),
             input: vec!["The user requested a source review.".to_owned()],
+            images: Vec::new(),
             parent_compaction: None,
             parent_compaction_hash: None,
             output_schema: schema,
@@ -342,6 +348,7 @@ async fn sampler_returns_complete_json_before_terminal_response_events() -> Resu
         sampler.sample(LunaSamplingRequest {
             instructions: "Return a risk score.".to_owned(),
             input: vec!["The user requested a README summary.".to_owned()],
+            images: Vec::new(),
             parent_compaction: None,
             parent_compaction_hash: None,
             output_schema: json!({
@@ -359,6 +366,51 @@ async fn sampler_returns_complete_json_before_terminal_response_events() -> Resu
     assert_eq!(output, r#"{"score":0.25}"#);
     drop(sampler);
     tokio::join!(idle_server.shutdown(), server.shutdown());
+    Ok(())
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+async fn sampler_recovers_after_initial_prewarm_failures() -> Result<()> {
+    skip_if_no_network!(Ok(()));
+
+    let server = responses::start_websocket_server(vec![vec![vec![
+        ev_assistant_message("recovered", r#"{"score":0.25}"#),
+        ev_completed("recovered"),
+    ]]])
+    .await;
+    let listener = TcpListener::bind("127.0.0.1:0").await?;
+    let address = listener.local_addr()?;
+    let target = server.uri().trim_start_matches("ws://").to_owned();
+    let failed_connections = Arc::new(AtomicUsize::new(0));
+    let observed_failures = Arc::clone(&failed_connections);
+    tokio::spawn(async move {
+        for _ in 0..=MAX_SAMPLING_RETRIES {
+            let Ok((connection, _)) = listener.accept().await else {
+                return;
+            };
+            observed_failures.fetch_add(/*val*/ 1, Ordering::Relaxed);
+            drop(connection);
+        }
+        while let Ok((mut incoming, _)) = listener.accept().await {
+            let target = target.clone();
+            tokio::spawn(async move {
+                let Ok(mut outgoing) = TcpStream::connect(target).await else {
+                    return;
+                };
+                let _ = tokio::io::copy_bidirectional(&mut incoming, &mut outgoing).await;
+            });
+        }
+    });
+
+    let sampler = LunaSampler::connect(sampler_config(format!("http://{address}/v1"))).await?;
+    assert_eq!(failed_connections.load(Ordering::Relaxed), 1);
+
+    assert_eq!(
+        sampler.sample(sample_request("turn-1")).await?,
+        r#"{"score":0.25}"#
+    );
+    assert_eq!(server.handshakes().len(), 1);
+
     Ok(())
 }
 
@@ -554,5 +606,83 @@ async fn sampler_retries_expired_websockets_on_another_warm_connection() -> Resu
         expired_requests[0].body_json(),
         healthy_requests[0].body_json()
     );
+    Ok(())
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn sampler_reconnects_after_transient_service_failures() -> Result<()> {
+    skip_if_no_network!(Ok(()));
+
+    let unavailable = || {
+        vec![vec![vec![json!({
+            "type": "error",
+            "status": 503,
+            "error": {
+                "type": "server_error",
+                "message": "temporarily unavailable"
+            }
+        })]]]
+    };
+    let first = responses::start_websocket_server(unavailable()).await;
+    let second = responses::start_websocket_server(unavailable()).await;
+    let recovered = responses::start_websocket_server(vec![vec![vec![
+        ev_assistant_message("recovered", r#"{"score":0.25}"#),
+        ev_completed("recovered"),
+    ]]])
+    .await;
+    let sampler = LunaSampler::connect(sampler_config(
+        proxy_websocket_servers(&[&first, &second, &recovered]).await?,
+    ))
+    .await?;
+
+    assert_eq!(
+        sampler.sample(sample_request("turn-1")).await?,
+        r#"{"score":0.25}"#
+    );
+    assert_eq!(first.single_connection().len(), 1);
+    assert_eq!(second.single_connection().len(), 1);
+    assert_eq!(recovered.single_connection().len(), 1);
+    assert_eq!(
+        recovered.single_handshake().header("authorization"),
+        Some("Bearer test-api-key".to_owned())
+    );
+
+    Ok(())
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn sampler_limits_transient_recovery_attempts() -> Result<()> {
+    skip_if_no_network!(Ok(()));
+
+    let unavailable = || {
+        vec![vec![vec![json!({
+            "type": "error",
+            "status": 503,
+            "error": {
+                "type": "server_error",
+                "message": "temporarily unavailable"
+            }
+        })]]]
+    };
+    let first = responses::start_websocket_server(unavailable()).await;
+    let second = responses::start_websocket_server(unavailable()).await;
+    let third = responses::start_websocket_server(unavailable()).await;
+    let unused = responses::start_websocket_server(unavailable()).await;
+    let sampler = LunaSampler::connect(sampler_config(
+        proxy_websocket_servers(&[&first, &second, &third, &unused]).await?,
+    ))
+    .await?;
+
+    let error = sampler
+        .sample(sample_request("turn-1"))
+        .await
+        .expect_err("sampling should stop after the bounded retries");
+
+    assert!(error.to_string().contains("503"));
+    assert_eq!(first.single_connection().len(), 1);
+    assert_eq!(second.single_connection().len(), 1);
+    assert_eq!(third.single_connection().len(), 1);
+    assert!(unused.handshakes().is_empty());
+
     Ok(())
 }

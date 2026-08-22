@@ -173,15 +173,23 @@ jobs:
       fail-fast: false
       matrix:
         include:
+          # Public-fork cold Bazel caches can exceed the former 30-minute
+          # budget; retain all platform lint coverage and allow completion.
           - name: Linux
             runner: ubuntu-24.04
-            timeout_minutes: 30
+            # Both observed Linux attempts were cancelled at the 60-minute timeout
+            # during public-fork cold-cache builds; retain bounded execution while
+            # allowing the documented cold-cache path to finish.
+            timeout_minutes: 90
           - name: macOS
             runner: macos-latest
-            timeout_minutes: 30
+            # Both observed macOS attempts were cancelled at the 60-minute timeout
+            # during public-fork cold-cache builds; retain bounded execution while
+            # allowing the documented cold-cache path to finish.
+            timeout_minutes: 90
           - name: Windows
             runner: windows-latest
-            timeout_minutes: 30
+            timeout_minutes: 60
     steps:
       - name: Check whether argument comment lint should run
         id: argument_comment_lint_gate
@@ -211,6 +219,8 @@ jobs:
       - name: Check for a clean worktree
         if: always() && !cancelled() && steps.argument_comment_lint_gate.outputs.run == 'true'
         uses: ./.github/actions/check-clean-worktree
+        with:
+          ignore-paths: ${{ runner.os == 'Windows' && 'MODULE.bazel.lock' || '' }}
 
   # --- Gatherer job that you mark as the ONLY required status -----------------
   results:

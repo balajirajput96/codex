@@ -44,11 +44,6 @@
 //! - Persistent cross-session history (text-only; no element ranges or attachments).
 //! - Local in-session history (full text + text elements + local/remote image attachments).
 //!
-//! Before composer history handles Vim-normal history-up, `ChatWidget` restores the latest queued
-//! follow-up when the composer is empty and no popup is active. It removes the message from the
-//! queue before placing it in the composer, so editing and requeuing it replaces the prior
-//! revision instead of creating duplicates.
-//!
 //! When recalling a local entry, the composer rehydrates text elements and both attachment kinds
 //! (local image paths + remote image URLs).
 //! When recalling a persistent entry, only the text is restored.
@@ -389,7 +384,7 @@ fn parent_owned_command_is_allowed(command: SlashCommand, args: &str) -> bool {
                 | SlashCommand::App
                 | SlashCommand::Side
                 | SlashCommand::Btw
-                | SlashCommand::Agent
+                | SlashCommand::Agents
                 | SlashCommand::MultiAgents
                 | SlashCommand::Vim
                 | SlashCommand::Keymap
@@ -4982,7 +4977,8 @@ mod tests {
     #[test]
     fn parent_owned_thread_allows_bare_navigation_commands() {
         for (command, expected) in [
-            ("/agent", SlashCommand::Agent),
+            ("/agents", SlashCommand::Agents),
+            ("/subagents", SlashCommand::MultiAgents),
             ("/side", SlashCommand::Side),
             ("/btw", SlashCommand::Btw),
             ("/diff ", SlashCommand::Diff),
@@ -5008,7 +5004,7 @@ mod tests {
             .handle_key_event(KeyEvent::new(KeyCode::Enter, KeyModifiers::NONE))
             .0;
 
-        assert_eq!(result, InputResult::Command(SlashCommand::Agent));
+        assert_eq!(result, InputResult::Command(SlashCommand::Agents));
     }
 
     #[test]
@@ -12190,8 +12186,16 @@ mod tests {
         );
 
         let count = LARGE_PASTE_CHAR_THRESHOLD; // 1000 in current config
-        let chars: Vec<char> = vec!['z'; count];
-        type_chars_humanlike(&mut composer, &chars);
+        let mut now = Instant::now();
+        let step = ChatComposer::recommended_paste_flush_delay();
+        for _ in 0..count {
+            let _ = composer.handle_input_basic_with_time(
+                KeyEvent::new(KeyCode::Char('z'), KeyModifiers::NONE),
+                now,
+            );
+            now += step;
+            let _ = composer.handle_paste_burst_flush(now);
+        }
 
         assert_eq!(composer.draft.textarea.text(), "z".repeat(count));
         assert!(composer.draft.pending_pastes.is_empty());

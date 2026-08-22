@@ -333,7 +333,7 @@ eventsource-stream = "0.2.3"
 flate2 = "1.1.8"
 futures = { version = "0.3", default-features = false }
 gethostname = "1.1.0"
-gix = { version = "0.81.0", default-features = false, features = ["sha1"] }
+gix = { version = "0.83.0", default-features = false, features = ["sha1"] }
 glob = "0.3"
 globset = "0.4"
 hmac = "0.12.1"
@@ -351,7 +351,10 @@ insta = "1.46.3"
 inventory = "0.3.19"
 itertools = "0.14.0"
 jsonptr = { version = "0.7.1", default-features = false }
-jsonwebtoken = "9.3.1"
+# Select a single JWT crypto backend for every Bazel and Cargo target. Without
+# this, different dependency graphs can enable zero or multiple providers.
+# AWS-LC is already part of the workspace's hermetic Windows build graph.
+jsonwebtoken = { version = "10.3.0", default-features = false, features = ["aws_lc_rs", "use_pem"] }
 keyring = { version = "3.6", default-features = false }
 landlock = "0.4.4"
 lazy_static = "1"
@@ -396,7 +399,7 @@ rcgen = { version = "0.14.7", default-features = false, features = [
 regex = "1.12.3"
 regex-lite = "0.1.8"
 reqwest = { version = "0.12", features = ["cookies"] }
-rmcp = { version = "=3.0.0", default-features = false }
+rmcp = { version = "=3.1.2", default-features = false }
 runfiles = { git = "https://github.com/dzbarsky/rules_rust", rev = "b56cbaa8465e74127f1ea216f813cd377295ad81" }
 rustix = { version = "1.1.4", features = ["net"] }
 rustls = { version = "0.23", default-features = false, features = [
@@ -448,7 +451,7 @@ supports-color = "3.0.2"
 syntect = "5"
 sys-locale = "0.3.2"
 system-configuration = "0.7"
-tar = { version = "=0.4.45", default-features = false }
+tar = { version = "=0.4.46", default-features = false }
 tempfile = "3.23.0"
 test-log = "0.2.19"
 textwrap = "0.16.2"

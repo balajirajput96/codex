@@ -98,6 +98,8 @@ use tracing::instrument;
 use tracing::warn;
 
 const THREAD_CREATED_CHANNEL_CAPACITY: usize = 1024;
+// Reject pathological selected cwd values at the environment-selection boundary.
+const MAX_TURN_ENVIRONMENT_CWD_BYTES: usize = 8 * 1024;
 
 /// Test-only override for enabling thread-manager behaviors used by integration
 /// tests.
@@ -441,7 +443,7 @@ impl ThreadManager {
         let plugins_manager = Arc::new(PluginsManager::new_with_options(
             codex_home.to_path_buf(),
             restriction_product,
-            auth_manager.get_api_auth_mode(),
+            Arc::clone(&auth_manager),
             skills_service.clone(),
         ));
         let mcp_manager = Arc::new(McpManager::new_with_extensions(
@@ -588,7 +590,7 @@ impl ThreadManager {
         let plugins_manager = Arc::new(PluginsManager::new_with_options(
             codex_home.clone(),
             restriction_product,
-            auth_manager.get_api_auth_mode(),
+            Arc::clone(&auth_manager),
             skills_service.clone(),
         ));
         let mcp_manager = Arc::new(McpManager::new(Arc::clone(&plugins_manager)));
@@ -724,6 +726,12 @@ impl ThreadManager {
     ) -> CodexResult<()> {
         let mut environment_ids = HashSet::with_capacity(environments.len());
         for environment in environments {
+            if environment.cwd.inferred_native_path_string().len() > MAX_TURN_ENVIRONMENT_CWD_BYTES
+            {
+                return Err(CodexErr::InvalidRequest(
+                    "turn environment working directory exceeds the maximum size".to_string(),
+                ));
+            }
             if !environment_ids.insert(environment.environment_id.as_str()) {
                 return Err(CodexErr::InvalidRequest(format!(
                     "duplicate turn environment id `{}`",

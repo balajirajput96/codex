@@ -271,11 +271,10 @@ if [[ ${#bazel_args[@]} -eq 0 || ${#bazel_targets[@]} -eq 0 ]]; then
 fi
 
 if [[ "${RUNNER_OS:-}" == "Windows" && $windows_cross_compile -eq 1 && -z "${BUILDBUDDY_API_KEY:-}" ]]; then
-  # Public forks cannot use the upstream Linux RBE pool. Keep build and test
-  # actions local on the existing gnullvm Windows host platform, preserving the
-  # same target ABI without selecting MSVC-only execution toolchains.
+  # Public forks cannot use the upstream Linux RBE pool. Keep the gnullvm
+  # target ABI while retaining the hosted MSVC execution platform for helper
+  # binaries and Rust proc-macros.
   ci_config=ci-windows
-  windows_msvc_host_platform=0
 fi
 
 post_config_bazel_args=()
@@ -291,11 +290,16 @@ if [[ "${RUNNER_OS:-}" == "Windows" && $windows_cross_compile -eq 1 && -z "${BUI
   if [[ $has_target_platform_override -eq 0 ]]; then
     post_config_bazel_args+=("--platforms=//:windows_x86_64_gnullvm")
   fi
-  # Without RBE, resolve tests on a local gnullvm execution platform rather
-  # than MSVC so Rust's GNU linker arguments stay with hermetic LLVM.
+  # Resolve test targets for the gnullvm ABI, but execute their helpers on
+  # the hosted MSVC platform. The repository-wide default disables local C++
+  # auto-detection, so explicitly unset it before selecting the matching
+  # ABI-scoped local toolchain. That wrapper cannot match ordinary gnullvm
+  # target actions, which therefore retain hermetic LLVM.
   post_config_bazel_args+=(
-    "--extra_execution_platforms=//:windows_x86_64_gnullvm"
-    "--extra_toolchains=//:windows_gnullvm_tests_on_gnullvm_host_toolchain"
+    "--repo_env==BAZEL_DO_NOT_DETECT_CPP_TOOLCHAIN"
+    "--extra_execution_platforms=//:win"
+    "--extra_toolchains=//:windows_gnullvm_tests_on_msvc_host_toolchain"
+    "--extra_toolchains=//:windows_msvc_local_cc_toolchain"
   )
 fi
 if [[ "${RUNNER_OS:-}" == "Windows" && $windows_msvc_host_platform -eq 1 ]]; then
@@ -317,15 +321,18 @@ if [[ "${RUNNER_OS:-}" == "Windows" && $windows_msvc_host_platform -eq 1 ]]; the
     post_config_bazel_args+=("--host_platform=//:win")
   fi
 
-  # Both native-MSVC and gnullvm-targeted jobs bootstrap Rust helper binaries
-  # on the hosted MSVC execution platform. Select the local C++ toolchain so
-  # Rust's MSVC linker arguments reach link.exe; its MSVC target constraints do
-  # not match gnullvm target actions, which keep the hermetic LLVM toolchain.
-  # `--repo_env==NAME` uses Bazel's explicit-unset syntax to override the
-  # repository-wide `=1` setting and let the local repository detect MSVC.
+  # Native MSVC targets use the local C++ toolchain. The public gnullvm
+  # fallback above owns its exec-Rustc linker override because it executes
+  # helpers on MSVC while targeting gnullvm. `--repo_env==NAME` uses Bazel's
+  # explicit-unset syntax to override the repository-wide `=1` setting and let
+  # the local repository detect MSVC.
   post_config_bazel_args+=(
     "--repo_env==BAZEL_DO_NOT_DETECT_CPP_TOOLCHAIN"
     "--extra_toolchains=//:windows_msvc_local_cc_toolchain"
+    # Local public-fork runs intentionally omit --config=ci-windows because
+    # that configuration enables remote CI settings. Preserve its documented
+    # hosted-runner test exclusions explicitly for the native local path.
+    "--test_env=CODEX_BAZEL_TEST_SKIP_FILTERS=suite::code_mode::code_mode_can_call_hidden_dynamic_tools,tests::windows_tests::conpty_ctrl_c_interrupts_foreground_child"
   )
 fi
 

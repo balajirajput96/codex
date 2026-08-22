@@ -167,7 +167,7 @@ common:ci-windows --build_metadata=TAG_os=windows
 common:ci-windows --repo_contents_cache=D:/a/.cache/bazel-repo-contents-cache
 # The hidden dynamic-tool callback currently times out on Windows, and ConPTY
 # cannot reliably interrupt foreground processes on Windows Bazel runners.
-common:ci-windows --test_env=CODEX_BAZEL_TEST_SKIP_FILTERS=suite::code_mode::code_mode_can_call_hidden_dynamic_tools,tests::windows_tests::conpty_ctrl_c_interrupts_powershell_foreground_child
+common:ci-windows --test_env=CODEX_BAZEL_TEST_SKIP_FILTERS=suite::code_mode::code_mode_can_call_hidden_dynamic_tools,tests::windows_tests::conpty_ctrl_c_interrupts_foreground_child
 
 # We prefer to run the build actions entirely remotely so we can dial up the concurrency.
 # We have platform-specific tests, so we want to execute the tests on all platforms using the strongest sandboxing available on each platform.
@@ -201,7 +201,7 @@ common:ci-windows-cross --test_env=RUST_TEST_THREADS=1
 # Native Windows CI still covers the PowerShell parser-process tests. The
 # cross-built gnullvm binaries currently hang in those tests when run on the
 # Windows runner. This replaces the Windows skip list, so retain its exclusions.
-common:ci-windows-cross --test_env=CODEX_BAZEL_TEST_SKIP_FILTERS=command_safety::powershell_parser::tests::,suite::code_mode::code_mode_can_call_hidden_dynamic_tools,tests::windows_tests::conpty_ctrl_c_interrupts_powershell_foreground_child
+common:ci-windows-cross --test_env=CODEX_BAZEL_TEST_SKIP_FILTERS=command_safety::powershell_parser::tests::,suite::code_mode::code_mode_can_call_hidden_dynamic_tools,tests::windows_tests::conpty_ctrl_c_interrupts_foreground_child
 common:ci-windows-cross --platforms=//:windows_x86_64_gnullvm
 common:ci-windows-cross --extra_execution_platforms=//:rbe,//:windows_x86_64_msvc
 common:ci-windows-cross --extra_toolchains=//:windows_gnullvm_tests_on_msvc_host_toolchain

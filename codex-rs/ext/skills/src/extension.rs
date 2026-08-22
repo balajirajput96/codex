@@ -228,7 +228,7 @@ where
                 &catalog,
                 include_usage,
                 SkillCatalogRenderPolicy::ExtensionCompatible,
-                skill_metadata_budget(/*context_window*/ None),
+                skill_metadata_budget(/*context_window*/ None, config.max_context_tokens),
             );
             if let Some(message) = rendered.warning_message {
                 self.emit_warning(thread_store.level_id(), /*turn_id*/ None, message);
@@ -395,11 +395,12 @@ where
                 let shadow_selected_entries =
                     collect_explicit_skill_mentions(&input.user_input, &shadow_catalog);
                 Some(self.shadow_selection.run(
-                    &input.user_input,
+                    &input,
                     &shadow_catalog,
                     &shadow_selected_entries,
                     host_snapshot.as_deref(),
                     Arc::clone(&thread_state.recent_skill_invocations),
+                    Arc::clone(&thread_state.shadow_task_context),
                 ))
             } else {
                 None
@@ -420,7 +421,8 @@ where
                 let context_window = model_info
                     .as_deref()
                     .and_then(ModelInfo::resolved_context_window);
-                let metadata_budget = skill_metadata_budget(context_window);
+                let metadata_budget =
+                    skill_metadata_budget(context_window, config.max_context_tokens);
                 let rendered = render_catalog(
                     extension_metrics.as_deref(),
                     CatalogSurface::TurnInput,

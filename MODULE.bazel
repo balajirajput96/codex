@@ -16,6 +16,7 @@ single_version_override(
     patches = [
         "//patches:llvm_rusty_v8_custom_libcxx.patch",
         "//patches:llvm_windows_arm64_powl.patch",
+        "//patches:llvm_header_parser_windows_compat.patch",
         "//patches:llvm_windows_mingw_compat.patch",
     ],
 )
@@ -29,6 +30,20 @@ single_version_override(
         "//patches:windows-support-remote-case-aliases.patch",
     ],
     version = "0.2.0",
+)
+
+# Expose proc_macro_deps on rules_rs crate annotations so Windows gnullvm
+# includes ctor/dtor host procedural-macro crates in the generated graph.
+single_version_override(
+    module_name = "rules_rs",
+    patch_strip = 1,
+    patches = [
+        "//patches:rules_rs_proc_macro_deps_extension.patch",
+        "//patches:rules_rs_proc_macro_deps_annotations.patch",
+        "//patches:rules_rs_proc_macro_deps_repository_utils.patch",
+        "//patches:rules_rs_proc_macro_deps_rust_crate.patch",
+    ],
+    version = "0.0.96",
 )
 
 # MSVC repository materialization fails closed until a user who has accepted
@@ -160,14 +175,6 @@ single_version_override(
 bazel_dep(name = "rules_platform", version = "0.1.0")
 bazel_dep(name = "aws-lc", version = "5.1.0.bcr.1")
 bazel_dep(name = "rules_rs", version = "0.0.96")
-single_version_override(
-    module_name = "rules_rs",
-    patch_strip = 1,
-    patches = [
-        "//patches:rules_rs_build_script_deps_annotation.patch",
-    ],
-    version = "0.0.96",
-)
 
 rules_rust = use_extension("@rules_rs//rs:rules_rust.bzl", "rules_rust")
 rules_rust.patch(
@@ -181,6 +188,15 @@ rules_rust.patch(
         # Skip transient native-Windows linker outputs while consolidating
         # dependency search paths.
         "//patches:rules_rust_windows_process_wrapper_skip_temp_outputs.patch",
+        # Keep Windows Rust action command lines below CreateProcessW's
+        # 32,767-character limit by routing compiler flags through a response file.
+        "//patches:rules_rust_windows_force_param_file.patch",
+        # The process wrapper's own env and argument-file options can also
+        # exceed CreateProcessW's limit for large Windows test targets.
+        "//patches:rules_rust_windows_outer_wrapper_param_file.patch",
+        # Expand that outer response file before parsing wrapper options while
+        # preserving compiler response files after the child-command boundary.
+        "//patches:rules_rust_windows_expand_outer_wrapper_param_file.patch",
     ],
     strip = 1,
 )
@@ -251,6 +267,7 @@ nightly_rust.repository_set(
         "@llvm//constraints/windows/abi:gnullvm",
         "@llvm//constraints/windows/crt:msvcrt",
     ],
+    target_settings = ["@rules_rust//rust/toolchain/channel:nightly"],
     target_triple = "x86_64-pc-windows-gnullvm",
     versions = ["nightly/2025-09-18"],
 )
@@ -280,6 +297,29 @@ register_toolchains("@rules_rust_bindgen//:all")
 register_toolchains("//bazel/toolchains/prost:toolchain")
 
 crate = use_extension("@rules_rs//rs:extensions.bzl", "crate")
+
+# rules_rs does not infer all host procedural-macro edges on Windows gnullvm.
+# Keep ctor/dtor's proc-macro crates in the host dependency graph explicitly.
+crate.annotation(
+    crate = "ctor",
+    proc_macro_deps = ["@crates//:linktime-proc-macro-0.1.0"],
+)
+crate.annotation(
+    crate = "dtor",
+    proc_macro_deps = ["@crates//:dtor-proc-macro-0.0.6"],
+)
+crate.annotation(
+    crate = "castaway",
+    proc_macro_deps = ["@crates//:rustversion-1.0.22"],
+)
+crate.annotation(
+    crate = "include_dir",
+    proc_macro_deps = ["@crates//:include_dir_macros-0.7.4"],
+)
+crate.annotation(
+    crate = "time",
+    proc_macro_deps = ["@crates//:time-macros-0.2.27"],
+)
 crate.from_cargo(
     cargo_lock = "//codex-rs:Cargo.lock",
     cargo_toml = "//codex-rs:Cargo.toml",

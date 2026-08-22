@@ -5,8 +5,8 @@ load("@rules_rust//rust:defs.bzl", "rust_binary", "rust_library", "rust_proc_mac
 load("//bazel/rules/testing:foreign_platform_binary.bzl", "foreign_platform_binary")
 load("//bazel/rules/testing/wine:wine_runtime.bzl", "WINE_TEST_TARGET_COMPATIBLE_WITH", "wine_test_runtime")
 
-# Match Cargo's Windows linker behavior so Bazel-built binaries and tests use
-# the same stack reserve on both Windows ABIs and resolve UCRT imports on MSVC.
+# Match Cargo's Windows linker behavior so gnullvm-built binaries and tests use
+# the same stack reserve as Cargo builds.
 WINDOWS_GNULLVM_RUSTC_LINK_FLAGS = [
     "-C",
     "link-arg=-Wl,--stack,8388608",  # 8 MiB
@@ -14,14 +14,6 @@ WINDOWS_GNULLVM_RUSTC_LINK_FLAGS = [
 
 WINDOWS_RUSTC_LINK_FLAGS = select({
     "@llvm//constraints/windows/abi:gnullvm": WINDOWS_GNULLVM_RUSTC_LINK_FLAGS,
-    "@llvm//constraints/windows/abi:msvc": [
-        "-C",
-        "link-arg=/STACK:8388608",  # 8 MiB
-        "-C",
-        "link-arg=/NODEFAULTLIB:libucrt.lib",
-        "-C",
-        "link-arg=ucrt.lib",
-    ],
     "//conditions:default": [],
 })
 
@@ -191,6 +183,7 @@ def codex_rust_crate(
         binary_compile_data_extra = {},
         lib_data_extra = [],
         rustc_flags_extra = [],
+        windows_rustc_link_flags = WINDOWS_RUSTC_LINK_FLAGS,
         binary_rustc_flags_extra = {},
         rustc_env = {},
         rustc_env_files = [],
@@ -202,6 +195,7 @@ def codex_rust_crate(
         integration_test_timeout = None,
         test_data_extra = [],
         test_shard_counts = {},
+        windows_test_env = {},
         test_tags = [],
         unit_test_timeout = None,
         extra_binaries = [],
@@ -232,6 +226,10 @@ def codex_rust_crate(
         binary_compile_data_extra: Mapping from binary names to extra non-Rust
             compile-time data for those binary targets.
         lib_data_extra: Extra runtime data for the library target.
+        windows_rustc_link_flags: Platform-selected Rust linker flags applied to
+            generated binaries and tests. Defaults to the repository Windows
+            ABI configuration; crates with a conflicting native link closure
+            may provide a narrower override.
         binary_rustc_flags_extra: Mapping from binary names to extra rustc
             flags for those binary targets.
         rustc_env: Extra rustc_env entries to merge with defaults.
@@ -252,6 +250,9 @@ def codex_rust_crate(
             and then assigns each libtest case to a stable bucket by hashing
             the test name. Matching tests are also marked flaky, which gives
             them Bazel's default three attempts.
+        windows_test_env: Extra runtime environment for generated test wrappers
+            on native Windows. Use this for process-global native dependencies
+            while preserving Bazel shard-level parallelism.
         test_tags: Tags applied to unit + integration test targets.
             Typically used to disable the sandbox, but see https://bazel.build/reference/be/common-definitions#common.tags
         unit_test_timeout: Optional Bazel timeout for the unit-test target
@@ -265,13 +266,17 @@ def codex_rust_crate(
             Wine-exec variant for each integration test. Variants inherit the
             native test's timeout, tags, and shard count.
     """
-    test_env = {
+    base_test_env = {
         # The launcher resolves an absolute workspace root at runtime so
         # manifest-only platforms like macOS still point Insta at the real
         # `codex-rs` checkout.
         "INSTA_WORKSPACE_ROOT": ".",
         "INSTA_SNAPSHOT_PATH": "src",
     }
+    test_env = select({
+        "@platforms//os:windows": base_test_env | windows_test_env,
+        "//conditions:default": base_test_env,
+    })
 
     native.filegroup(
         name = "package-files",
@@ -350,7 +355,7 @@ def codex_rust_crate(
             # `../codex-rs/<crate>/...` paths for `file!()`. Strip either
             # prefix so the workspace-root launcher sees Cargo-like metadata
             # such as `tui/src/...`.
-            rustc_flags = rustc_flags_extra + WINDOWS_RUSTC_LINK_FLAGS + [
+            rustc_flags = rustc_flags_extra + windows_rustc_link_flags + [
                 "--remap-path-prefix=../codex-rs=",
                 "--remap-path-prefix=codex-rs=",
             ],
@@ -396,7 +401,7 @@ def codex_rust_crate(
             # Keep per-binary Cargo link behavior scoped to the matching
             # generated rust_binary instead of leaking it to sibling binaries.
             compile_data = binary_compile_data_extra.get(binary, []),
-            rustc_flags = rustc_flags_extra + binary_rustc_flags_extra.get(binary, []) + WINDOWS_RUSTC_LINK_FLAGS,
+            rustc_flags = rustc_flags_extra + binary_rustc_flags_extra.get(binary, []) + windows_rustc_link_flags,
             # rules_rust substitutes workspace status values only for stamped
             # actions, so pass the existing key through to final binaries.
             rustc_env = {"STABLE_GIT_COMMIT": "{STABLE_GIT_COMMIT}"},
@@ -416,7 +421,7 @@ def codex_rust_crate(
             crate = ":" + binary,
             crate_features = crate_features,
             deps = all_crate_deps(normal_dev = True),
-            rustc_flags = rustc_flags_extra + WINDOWS_RUSTC_LINK_FLAGS + [
+            rustc_flags = rustc_flags_extra + windows_rustc_link_flags + [
                 "--remap-path-prefix=../codex-rs=",
                 "--remap-path-prefix=codex-rs=",
             ],
@@ -546,7 +551,7 @@ def codex_rust_crate(
                 # Bazel has emitted both `codex-rs/<crate>/...` and
                 # `../codex-rs/<crate>/...` paths for `file!()`. Strip either
                 # prefix so Insta records Cargo-like metadata such as `core/tests/...`.
-                rustc_flags = rustc_flags_extra + WINDOWS_RUSTC_LINK_FLAGS + [
+                rustc_flags = rustc_flags_extra + windows_rustc_link_flags + [
                     "--remap-path-prefix=../codex-rs=",
                     "--remap-path-prefix=codex-rs=",
                 ],
@@ -585,7 +590,7 @@ def codex_rust_crate(
                 # Bazel has emitted both `codex-rs/<crate>/...` and
                 # `../codex-rs/<crate>/...` paths for `file!()`. Strip either
                 # prefix so Insta records Cargo-like metadata such as `core/tests/...`.
-                rustc_flags = rustc_flags_extra + WINDOWS_RUSTC_LINK_FLAGS + [
+                rustc_flags = rustc_flags_extra + windows_rustc_link_flags + [
                     "--remap-path-prefix=../codex-rs=",
                     "--remap-path-prefix=codex-rs=",
                 ],
@@ -657,7 +662,7 @@ def codex_rust_crate(
             data = native.glob(["tests/**"], allow_empty = True) + integration_test_binaries + integration_test_data_extra,
             compile_data = native.glob(["tests/**"], allow_empty = True) + integration_compile_data_extra,
             deps = all_crate_deps(normal = True, normal_dev = True) + maybe_deps + deps_extra,
-            rustc_flags = rustc_flags_extra + WINDOWS_RUSTC_LINK_FLAGS + [
+            rustc_flags = rustc_flags_extra + windows_rustc_link_flags + [
                 "--remap-path-prefix=../codex-rs=",
                 "--remap-path-prefix=codex-rs=",
             ],

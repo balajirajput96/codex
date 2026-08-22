@@ -1,5 +1,8 @@
+use std::collections::BTreeMap;
 use std::sync::Arc;
 use std::sync::Weak;
+use std::sync::atomic::AtomicUsize;
+use std::sync::atomic::Ordering;
 use std::time::SystemTime;
 
 use codex_core::ThreadManager;
@@ -180,6 +183,12 @@ fn truncate_action_value(value: &mut serde_json::Value, max_tokens: usize) {
 }
 struct GuardianV2Enabled;
 
+#[derive(Default)]
+struct GuardianV2ScoreProgress {
+    latest_tool_call: AtomicUsize,
+    latest_scored_tool_call: AtomicUsize,
+}
+
 #[derive(Clone)]
 struct GuardianV2Extension {
     auth_manager: Arc<AuthManager>,
@@ -247,6 +256,9 @@ impl ThreadLifecycleContributor<Config> for GuardianV2Extension {
                 Ok(sampler) => {
                     input.thread_store.insert(sampler);
                     input.thread_store.insert(guardian_config);
+                    input
+                        .thread_store
+                        .insert(GuardianV2ScoreProgress::default());
                     input.thread_store.insert(GuardianV2Enabled);
                 }
                 Err(error) => self.event_sink.emit_warning(ExtensionWarning {
@@ -269,6 +281,18 @@ impl ApprovalReviewContributor for GuardianV2Extension {
         Box::pin(async move {
             thread_store.get::<GuardianV2Enabled>()?;
             let guardian_config = thread_store.get::<GuardianV2Config>()?;
+            let score_progress = thread_store.get::<GuardianV2ScoreProgress>()?;
+            let tool_call_lag = score_progress
+                .latest_tool_call
+                .load(Ordering::Acquire)
+                .saturating_sub(
+                    score_progress
+                        .latest_scored_tool_call
+                        .load(Ordering::Acquire),
+                );
+            if tool_call_lag > guardian_config.max_tool_call_lag {
+                return None;
+            }
 
             thread_store
                 .get::<SecurityRiskScore>()
@@ -287,7 +311,71 @@ impl ToolLifecycleContributor for GuardianV2Extension {
         let Some(guardian_config) = input.thread_store.get::<GuardianV2Config>() else {
             return Box::pin(std::future::ready(()));
         };
+        let parent_model = input.thread_store.get::<ModelInfo>();
+        let model_defaults = parent_model
+            .as_ref()
+            .and_then(|model| model.model_messages.as_ref())
+            .and_then(|messages| messages.guardian_v2.as_ref());
+        let guardian_config = match guardian_config.with_model_defaults(model_defaults) {
+            Ok(config) => config,
+            Err(error) => {
+                self.event_sink.emit_warning(ExtensionWarning {
+                    thread_id: input.thread_store.level_id().to_owned(),
+                    turn_id: Some(input.turn_id.to_owned()),
+                    message: error,
+                });
+                return Box::pin(std::future::ready(()));
+            }
+        };
+        input.thread_store.insert(guardian_config.clone());
+        let Some(score_progress) = input.thread_store.get::<GuardianV2ScoreProgress>() else {
+            return Box::pin(std::future::ready(()));
+        };
+        let tool_call_index = score_progress
+            .latest_tool_call
+            .fetch_add(/*val*/ 1, Ordering::Relaxed)
+            .saturating_add(1);
         let sampled_at = SystemTime::now();
+        let latest_parent_compaction = input
+            .conversation_history
+            .items()
+            .filter(|item| {
+                matches!(
+                    item,
+                    ResponseItem::Compaction { .. } | ResponseItem::ContextCompaction { .. }
+                )
+            })
+            .last();
+        let parent_compaction = latest_parent_compaction.and_then(|item| {
+            encrypted_parent_compaction(
+                std::iter::once(item),
+                guardian_config.max_parent_compaction_tokens,
+            )
+        });
+        if parent_compaction.is_none()
+            && latest_parent_compaction.is_some_and(|item| match item {
+                ResponseItem::Compaction {
+                    id: Some(_),
+                    encrypted_content,
+                    ..
+                }
+                | ResponseItem::ContextCompaction {
+                    id: Some(_),
+                    encrypted_content: Some(encrypted_content),
+                    ..
+                } => !encrypted_content.is_empty(),
+                _ => false,
+            })
+        {
+            let score = SecurityRiskScore {
+                scores: BTreeMap::from([("action_risk".to_owned(), 1.0)]),
+                sampled_at: Some(sampled_at.into()),
+            };
+            input.thread_store.insert_if(score.clone(), |previous| {
+                previous.is_none_or(|previous| previous.sampled_at <= score.sampled_at)
+            });
+            return Box::pin(std::future::ready(()));
+        }
         let event_sink = Arc::clone(&self.event_sink);
         let thread_manager = self.thread_manager.clone();
         let thread_id = input.thread_store.level_id().to_owned();
@@ -296,7 +384,6 @@ impl ToolLifecycleContributor for GuardianV2Extension {
             tool_name: input.tool_name.clone(),
             payload: input.payload.clone(),
         };
-        let parent_model = input.thread_store.get::<ModelInfo>();
         let parent_compaction_hash = parent_model
             .as_ref()
             .and_then(|model| model.comp_hash.clone());
@@ -306,10 +393,12 @@ impl ToolLifecycleContributor for GuardianV2Extension {
         let conversation_history = Arc::clone(&input.conversation_history);
 
         tokio::spawn(async move {
-            let parent_compaction = encrypted_parent_compaction(conversation_history.items());
             let transcript = guardian_config
                 .transcript
                 .build(conversation_history.items());
+            let images = guardian_config
+                .transcript
+                .images(conversation_history.items());
             drop(conversation_history);
             let planned_action = match action.render(guardian_config.max_action_tokens) {
                 Ok(planned_action) => planned_action,
@@ -378,6 +467,7 @@ impl ToolLifecycleContributor for GuardianV2Extension {
                     .sample(LunaSamplingRequest {
                         instructions,
                         input: classification_input,
+                        images,
                         parent_compaction,
                         parent_compaction_hash,
                         output_schema: json!({
@@ -436,6 +526,9 @@ impl ToolLifecycleContributor for GuardianV2Extension {
                 {
                     return Ok(());
                 }
+                score_progress
+                    .latest_scored_tool_call
+                    .fetch_max(tool_call_index, Ordering::Release);
                 if !config.ephemeral {
                     thread
                         .append_rollout_items(&[RolloutItem::SecurityRiskScore(score)])
@@ -460,7 +553,9 @@ impl ToolLifecycleContributor for GuardianV2Extension {
 
 fn encrypted_parent_compaction<'a>(
     items: impl Iterator<Item = &'a ResponseItem>,
+    max_parent_compaction_tokens: usize,
 ) -> Option<ResponseItem> {
+    let max_compaction_bytes = TruncationPolicy::Tokens(max_parent_compaction_tokens).byte_budget();
     let item = items
         .filter(|item| {
             matches!(
@@ -475,12 +570,17 @@ fn encrypted_parent_compaction<'a>(
             id: Some(_),
             encrypted_content,
             ..
-        } if !encrypted_content.is_empty() => Some(item.clone()),
-        ResponseItem::ContextCompaction {
+        }
+        | ResponseItem::ContextCompaction {
             id: Some(_),
             encrypted_content: Some(encrypted_content),
             ..
-        } if !encrypted_content.is_empty() => Some(item.clone()),
+        } if !encrypted_content.is_empty()
+            && serde_json::to_vec(item)
+                .is_ok_and(|serialized| serialized.len() <= max_compaction_bytes) =>
+        {
+            Some(item.clone())
+        }
         _ => None,
     }
 }

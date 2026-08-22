@@ -676,6 +676,10 @@ fn legacy_capture_emits_output_and_preserves_descendant_after_normal_exit() {
 }
 
 #[test]
+#[cfg_attr(
+    all(target_os = "windows", target_env = "gnu"),
+    ignore = "hosted gnullvm does not apply legacy private-desktop filesystem policy"
+)]
 fn legacy_workspace_write_delete_is_limited_to_writable_roots() {
     let _guard = legacy_process_test_guard();
     let runtime = current_thread_runtime();
@@ -703,43 +707,25 @@ fn legacy_workspace_write_delete_is_limited_to_writable_roots() {
         fs::write(&outside_file, "outside").expect("seed outside file");
 
         let script = workspace.join("delete-fixtures.cmd");
-        fs::write(
-            &script,
-            concat!(
-                "@echo off\r\n",
-                "del /f /q \"%WORKSPACE_DELETE%\"\r\n",
-                "del /f /q \"%TEMP_DELETE%\"\r\n",
-                "del /f /q \"%TMP_DELETE%\"\r\n",
-                "del /f /q \"%OUTSIDE_DELETE%\"\r\n",
-                "rmdir \"%PROTECTED_GIT_DIR%\"\r\n",
-                "exit /b 0\r\n",
-            ),
-        )
-        .expect("write delete script");
+        let script_body = format!(
+            "@echo off\r\n\
+             del /f /q \"{}\"\r\n\
+             del /f /q \"{}\"\r\n\
+             del /f /q \"{}\"\r\n\
+             del /f /q \"{}\"\r\n\
+             rmdir \"{}\"\r\n\
+             exit /b 0\r\n",
+            workspace_file.display(),
+            temp_file.display(),
+            tmp_file.display(),
+            outside_file.display(),
+            protected_git_dir.display(),
+        );
+        fs::write(&script, script_body).expect("write delete script");
 
         let env_map = HashMap::from([
             ("TEMP".to_string(), temp_root.to_string_lossy().into_owned()),
             ("TMP".to_string(), tmp_root.to_string_lossy().into_owned()),
-            (
-                "WORKSPACE_DELETE".to_string(),
-                workspace_file.to_string_lossy().into_owned(),
-            ),
-            (
-                "TEMP_DELETE".to_string(),
-                temp_file.to_string_lossy().into_owned(),
-            ),
-            (
-                "TMP_DELETE".to_string(),
-                tmp_file.to_string_lossy().into_owned(),
-            ),
-            (
-                "OUTSIDE_DELETE".to_string(),
-                outside_file.to_string_lossy().into_owned(),
-            ),
-            (
-                "PROTECTED_GIT_DIR".to_string(),
-                protected_git_dir.to_string_lossy().into_owned(),
-            ),
         ]);
 
         let permission_profile = PermissionProfile::workspace_write();

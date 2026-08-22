@@ -27,6 +27,8 @@ use futures::future::BoxFuture;
 use futures::future::Shared;
 use tokio::sync::mpsc;
 use tokio_util::task::AbortOnDropHandle;
+use tracing::Instrument;
+use tracing::instrument::WithSubscriber;
 
 use crate::session::turn_context::ShellSnapshotTask;
 use crate::session::turn_context::TurnEnvironment;
@@ -139,6 +141,11 @@ impl fmt::Debug for StartingTurnEnvironment {
 }
 
 impl StartingTurnEnvironment {
+    #[tracing::instrument(
+        name = "environments.wait_until_ready",
+        skip_all,
+        fields(environment_id = %self.selection.environment_id)
+    )]
     pub(crate) async fn wait_until_ready(&self) -> Result<(), Arc<ExecServerError>> {
         self.resolution.clone().await.map(|_| ())
     }
@@ -283,7 +290,9 @@ impl ThreadEnvironments {
                 configuration_ready,
             )
             .remote_handle();
-            drop(tokio::spawn(resolution_task));
+            drop(tokio::spawn(
+                resolution_task.in_current_span().with_current_subscriber(),
+            ));
             let resolution = resolution.boxed().shared();
             let selected = SelectedTurnEnvironment {
                 selection: selected_environment,
@@ -477,78 +486,91 @@ impl ThreadEnvironments {
         self.environments.store(Arc::new(environments));
     }
 
-    fn resolve_environment(
+    #[tracing::instrument(
+        name = "environments.resolve",
+        skip_all,
+        fields(
+            environment_id = %selection.environment_id,
+            remote = environment.is_remote(),
+            configuration_pending = configuration_ready.is_some(),
+        )
+    )]
+    async fn resolve_environment(
         selection: TurnEnvironmentSelection,
         environment: Arc<Environment>,
         local_shell: Shell,
         shell_snapshot: ShellSnapshot,
         configuration_ready: Option<mpsc::Receiver<PendingConfigurationResult>>,
-    ) -> BoxFuture<'static, TurnEnvironmentResult> {
-        async move {
-            let environment_id = &selection.environment_id;
-            if let EnvironmentConfigState::Failed(error) = &selection.config {
-                return Err(Arc::new(ExecServerError::Protocol(error.clone())));
-            }
+    ) -> TurnEnvironmentResult {
+        let environment_id = &selection.environment_id;
+        if let EnvironmentConfigState::Failed(error) = &selection.config {
+            return Err(Arc::new(ExecServerError::Protocol(error.clone())));
+        }
 
-            // Wait for the shared executor connection.
-            let connection_ready = async {
-                environment.wait_until_ready().await.map_err(|error| {
-                    tracing::warn!("turn environment `{environment_id}` failed to start: {error}");
-                    Arc::new(error)
-                })
+        // Wait for the shared executor connection.
+        let connection_ready = async {
+            environment.wait_until_ready().await.map_err(|error| {
+                tracing::warn!("turn environment `{environment_id}` failed to start: {error}");
+                Arc::new(error)
+            })
+        };
+        // Wait for this thread attachment's owner configuration, if pending.
+        let configuration_ready = async move {
+            let Some(mut configuration_ready) = configuration_ready else {
+                return Ok(None);
             };
-            // Wait for this thread attachment's owner configuration, if pending.
-            let configuration_ready = async move {
-                let Some(mut configuration_ready) = configuration_ready else {
-                    return Ok(None);
-                };
-                match configuration_ready.recv().await {
-                    Some(Ok(config)) => Ok(Some(config)),
-                    Some(Err(error)) => Err(Arc::new(ExecServerError::Protocol(error))),
-                    None => Err(Arc::new(ExecServerError::Protocol(
-                        "environment configuration was canceled".to_string(),
-                    ))),
-                }
-            };
-            // Resolve the attachment only after both prerequisites are ready.
-            let ((), installed_config) = tokio::try_join!(connection_ready, configuration_ready)?;
-            let shell = if environment.is_remote() {
-                match environment.info().await {
-                    Ok(info) => match Shell::from_environment_shell_info(info.shell) {
-                        Ok(shell) => Some(shell),
-                        Err(err) => {
-                            tracing::warn!(
-                                "failed to resolve shell for environment `{environment_id}`: {err}"
-                            );
-                            None
-                        }
-                    },
+            match configuration_ready.recv().await {
+                Some(Ok(config)) => Ok(Some(config)),
+                Some(Err(error)) => Err(Arc::new(ExecServerError::Protocol(error))),
+                None => Err(Arc::new(ExecServerError::Protocol(
+                    "environment configuration was canceled".to_string(),
+                ))),
+            }
+        };
+        // Resolve the attachment only after both prerequisites are ready.
+        let ((), installed_config) = tokio::try_join!(connection_ready, configuration_ready)?;
+        let shell = if environment.is_remote() {
+            match environment.info().await {
+                Ok(info) => match Shell::from_environment_shell_info(info.shell) {
+                    Ok(shell) => Some(shell),
                     Err(err) => {
                         tracing::warn!(
-                            "failed to get info for environment `{environment_id}`: {err}"
+                            "failed to resolve shell for environment `{environment_id}`: {err}"
                         );
                         None
                     }
+                },
+                Err(err) => {
+                    tracing::warn!("failed to get info for environment `{environment_id}`: {err}");
+                    None
                 }
-            } else {
-                Some(local_shell)
-            };
-            let task = shell_snapshot
-                .build(Arc::clone(&environment), selection.cwd, shell.clone())
-                .boxed()
-                .shared();
-            drop(tokio::spawn(task.clone()));
-            Ok(ResolvedEnvironment {
-                environment,
-                shell,
-                shell_snapshot: task,
-                installed_config,
-            })
-        }
-        .boxed()
+            }
+        } else {
+            Some(local_shell)
+        };
+        let task = shell_snapshot
+            .build(Arc::clone(&environment), selection.cwd, shell.clone())
+            .boxed()
+            .shared();
+        drop(tokio::spawn(
+            task.clone().in_current_span().with_current_subscriber(),
+        ));
+        Ok(ResolvedEnvironment {
+            environment,
+            shell,
+            shell_snapshot: task,
+            installed_config,
+        })
     }
 
-    #[tracing::instrument(name = "environments.snapshot", skip_all)]
+    #[tracing::instrument(
+        name = "environments.snapshot",
+        skip_all,
+        fields(
+            environment_count = self.environments.load().len(),
+            non_blocking = self.non_blocking_snapshots,
+        )
+    )]
     pub(crate) async fn snapshot(&self) -> TurnEnvironmentSnapshot {
         let selected = self.environments.load_full();
         let mut environments = Vec::with_capacity(selected.len());
@@ -563,19 +585,20 @@ impl ThreadEnvironments {
                 environment.selection.config,
                 EnvironmentConfigState::Pending
             );
-            let resolved = if self.non_blocking_snapshots || pending {
-                environment.resolution.clone().now_or_never()
-            } else {
-                Some(environment.resolution.clone().await)
+            let starting = StartingTurnEnvironment {
+                selection: environment.selection.clone(),
+                config_origin: environment.config_origin,
+                resolution: environment.resolution.clone(),
             };
-            if let Some(environment) = TurnEnvironmentState::from_resolution(
-                StartingTurnEnvironment {
-                    selection: environment.selection.clone(),
-                    config_origin: environment.config_origin,
-                    resolution: environment.resolution.clone(),
-                },
-                resolved,
-            ) {
+            let resolved = if self.non_blocking_snapshots || pending {
+                starting.resolution.clone().now_or_never()
+            } else {
+                Some(match starting.wait_until_ready().await {
+                    Ok(()) => starting.resolution.clone().await,
+                    Err(error) => Err(error),
+                })
+            };
+            if let Some(environment) = TurnEnvironmentState::from_resolution(starting, resolved) {
                 environments.push(environment);
             }
         }
@@ -779,6 +802,9 @@ mod tests {
     use tokio_tungstenite::WebSocketStream;
     use tokio_tungstenite::accept_async;
     use tokio_tungstenite::tungstenite::Message;
+    use tracing::Level;
+    use tracing_subscriber::fmt::format::FmtSpan;
+    use tracing_test::internal::MockWriter;
 
     use super::*;
 
@@ -788,6 +814,7 @@ mod tests {
             permission_profile: PermissionProfileSnapshot::legacy(PermissionProfile::read_only()),
             shell_environment_policy: Default::default(),
             exec_policy: None,
+            network_policy: None,
             selected_capability_roots: Vec::new(),
         }
     }
@@ -961,6 +988,7 @@ url = "ws://127.0.0.1:8765"
             ),
             shell_environment_policy: Default::default(),
             exec_policy: None,
+            network_policy: None,
             selected_capability_roots: Vec::new(),
         };
         let turn_environments = ThreadEnvironments::new(
@@ -1092,6 +1120,16 @@ url = "ws://127.0.0.1:8765"
 
     #[tokio::test]
     async fn blocking_snapshot_waits_for_starting_environment() {
+        let buffer: &'static std::sync::Mutex<Vec<u8>> =
+            Box::leak(Box::new(std::sync::Mutex::new(Vec::new())));
+        let subscriber = tracing_subscriber::fmt()
+            .with_ansi(false)
+            .with_max_level(Level::TRACE)
+            .with_span_events(FmtSpan::NEW)
+            .with_writer(MockWriter::new(buffer))
+            .finish();
+        let _subscriber_guard = tracing::subscriber::set_default(subscriber);
+
         let listener = TcpListener::bind("127.0.0.1:0")
             .await
             .expect("bind websocket listener");
@@ -1137,6 +1175,34 @@ url = "ws://127.0.0.1:8765"
         assert!(snapshot.starting().next().is_none());
         assert_eq!(snapshot.to_selections(), vec![selection]);
         server.await.expect("server task");
+
+        let logs = String::from_utf8(buffer.lock().expect("buffer lock").clone())
+            .expect("UTF-8 tracing output");
+        // The test validates the blocking snapshot behavior on every target. On
+        // hosted gnullvm, Tokio may run the spawned snapshot task on a thread
+        // without this test's task-local fmt subscriber, omitting part of the
+        // trace hierarchy from the captured writer. Native targets retain the
+        // full span-chain assertions; gnullvm still verifies snapshot behavior.
+        if !cfg!(all(target_os = "windows", target_env = "gnu")) {
+            assert!(
+                logs.contains(
+                    "environments.snapshot{environment_count=1 non_blocking=false}:environments.wait_until_ready{environment_id=remote}"
+                ),
+                "blocking snapshot should contain its environment wait span: {logs}"
+            );
+            assert!(
+                logs.contains(
+                    "environments.resolve{environment_id=remote remote=true configuration_pending=false}:exec_server.environment.wait_until_ready{remote=true}"
+                ),
+                "environment resolution should contain the executor connection wait span: {logs}"
+            );
+            assert!(
+                logs.contains(
+                    "environments.resolve{environment_id=remote remote=true configuration_pending=false}:exec_server.environment.info{remote=true}"
+                ),
+                "environment resolution should contain the remote environment-info span: {logs}"
+            );
+        }
     }
 
     #[tokio::test]
@@ -1164,6 +1230,7 @@ url = "ws://127.0.0.1:8765"
             ),
             shell_environment_policy: Default::default(),
             exec_policy: None,
+            network_policy: None,
             selected_capability_roots: Vec::new(),
         };
         let cwd = PathUri::from_abs_path(&cwd);
@@ -1499,6 +1566,7 @@ url = "ws://127.0.0.1:8765"
             ),
             shell_environment_policy: Default::default(),
             exec_policy: None,
+            network_policy: None,
             selected_capability_roots: Vec::new(),
         };
         let environments = ThreadEnvironments::new(
@@ -1544,6 +1612,7 @@ url = "ws://127.0.0.1:8765"
             permission_profile: PermissionProfileSnapshot::legacy(PermissionProfile::read_only()),
             shell_environment_policy: Default::default(),
             exec_policy: None,
+            network_policy: None,
             selected_capability_roots: vec![root("parent-root")],
         };
         let mut owner_selection = selection.clone();

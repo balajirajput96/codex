@@ -1,5 +1,6 @@
 use std::collections::BTreeMap;
 use std::sync::Arc;
+use std::sync::atomic::Ordering;
 use std::time::Duration;
 
 use anyhow::Result;
@@ -21,8 +22,14 @@ use codex_login::CodexAuth;
 use codex_model_provider_info::ModelProviderInfo;
 use codex_protocol::ResponseItemId;
 use codex_protocol::models::ContentItem;
+use codex_protocol::models::FunctionCallOutputContentItem;
 use codex_protocol::models::FunctionCallOutputPayload;
+use codex_protocol::models::ImageDetail;
+use codex_protocol::models::InternalChatMessageMetadataPassthrough;
 use codex_protocol::models::ReasoningItemReasoningSummary;
+use codex_protocol::openai_models::GuardianV2ModelConfig;
+use codex_protocol::openai_models::GuardianV2TranscriptModelConfig;
+use codex_protocol::openai_models::ReasoningEffort;
 use codex_protocol::protocol::ReviewDecision;
 use codex_protocol::protocol::SessionSource;
 use codex_protocol::protocol::TruncationPolicy;
@@ -36,8 +43,10 @@ use core_test_support::test_codex::test_codex;
 use pretty_assertions::assert_eq;
 use serde_json::json;
 
+use super::GuardianV2ScoreProgress;
 use super::encrypted_parent_compaction;
 use crate::config::DEFAULT_MODEL_CONTEXT_ITEM_TOKENS;
+use crate::config::DEFAULT_PARENT_COMPACTION_TOKENS;
 use crate::sampler::MODEL;
 
 const TEST_GUARDIAN_POLICY: &str =
@@ -67,11 +76,17 @@ fn encrypted_parent_compaction_preserves_the_latest_valid_item() {
     };
 
     assert_eq!(
-        encrypted_parent_compaction([&older, &latest].into_iter()),
+        encrypted_parent_compaction(
+            [&older, &latest].into_iter(),
+            DEFAULT_PARENT_COMPACTION_TOKENS,
+        ),
         Some(latest.clone())
     );
     assert_eq!(
-        encrypted_parent_compaction([&latest, &older].into_iter()),
+        encrypted_parent_compaction(
+            [&latest, &older].into_iter(),
+            DEFAULT_PARENT_COMPACTION_TOKENS,
+        ),
         Some(older)
     );
 }
@@ -113,11 +128,98 @@ fn encrypted_parent_compaction_rejects_invalid_latest_item() {
 
     for latest in &invalid {
         assert_eq!(
-            encrypted_parent_compaction([&older, latest].into_iter()),
+            encrypted_parent_compaction(
+                [&older, latest].into_iter(),
+                DEFAULT_PARENT_COMPACTION_TOKENS,
+            ),
             None,
             "an unusable latest summary must not resurrect older context"
         );
     }
+}
+
+#[test]
+fn encrypted_parent_compaction_rejects_oversized_latest_item() -> Result<()> {
+    let max_compaction_bytes =
+        TruncationPolicy::Tokens(DEFAULT_PARENT_COMPACTION_TOKENS).byte_budget();
+    let mut bounded = [
+        ResponseItem::Compaction {
+            id: Some(ResponseItemId::from_server("cmp_bounded".to_owned())),
+            encrypted_content: String::new(),
+            internal_chat_message_metadata_passthrough: None,
+        },
+        ResponseItem::ContextCompaction {
+            id: Some(ResponseItemId::from_server("ctx_bounded".to_owned())),
+            encrypted_content: Some(String::new()),
+            internal_chat_message_metadata_passthrough: None,
+        },
+    ];
+
+    for item in &mut bounded {
+        let envelope_bytes = serde_json::to_vec(&*item)?.len();
+        let encrypted_content = match item {
+            ResponseItem::Compaction {
+                encrypted_content, ..
+            }
+            | ResponseItem::ContextCompaction {
+                encrypted_content: Some(encrypted_content),
+                ..
+            } => encrypted_content,
+            _ => unreachable!("test fixtures are encrypted compaction items"),
+        };
+        *encrypted_content = "a".repeat(max_compaction_bytes - envelope_bytes);
+        assert_eq!(serde_json::to_vec(&*item)?.len(), max_compaction_bytes);
+        assert_eq!(
+            encrypted_parent_compaction(std::iter::once(&*item), DEFAULT_PARENT_COMPACTION_TOKENS,),
+            Some(item.clone())
+        );
+
+        let mut oversized = item.clone();
+        match &mut oversized {
+            ResponseItem::Compaction {
+                encrypted_content, ..
+            }
+            | ResponseItem::ContextCompaction {
+                encrypted_content: Some(encrypted_content),
+                ..
+            } => encrypted_content.push('a'),
+            _ => unreachable!("test fixtures are encrypted compaction items"),
+        }
+        assert_eq!(
+            serde_json::to_vec(&oversized)?.len(),
+            max_compaction_bytes + 1
+        );
+        assert_eq!(
+            encrypted_parent_compaction(
+                [&*item, &oversized].into_iter(),
+                DEFAULT_PARENT_COMPACTION_TOKENS,
+            ),
+            None,
+            "an oversized latest summary must not resurrect older context"
+        );
+    }
+
+    let oversized_metadata = ResponseItem::ContextCompaction {
+        id: Some(ResponseItemId::from_server(
+            "ctx_oversized_metadata".to_owned(),
+        )),
+        encrypted_content: Some("bounded encrypted summary".to_owned()),
+        internal_chat_message_metadata_passthrough: Some(InternalChatMessageMetadataPassthrough {
+            turn_id: Some("a".repeat(max_compaction_bytes)),
+            ..Default::default()
+        }),
+    };
+    assert!(serde_json::to_vec(&oversized_metadata)?.len() > max_compaction_bytes);
+    assert_eq!(
+        encrypted_parent_compaction(
+            [&bounded[0], &oversized_metadata].into_iter(),
+            DEFAULT_PARENT_COMPACTION_TOKENS,
+        ),
+        None,
+        "oversized passthrough metadata must not bypass the complete-item limit"
+    );
+
+    Ok(())
 }
 
 async fn sample_conversation_history(
@@ -125,8 +227,14 @@ async fn sample_conversation_history(
     arguments: &str,
     guardian_policy: Option<&str>,
 ) -> Result<(serde_json::Value, TestCodex, ExtensionRegistry<Config>)> {
-    sample_configured_conversation_history(conversation_history, arguments, guardian_policy, "")
-        .await
+    sample_configured_conversation_history(
+        conversation_history,
+        arguments,
+        guardian_policy,
+        "",
+        /*model_defaults*/ None,
+    )
+    .await
 }
 
 async fn sample_configured_conversation_history(
@@ -134,11 +242,13 @@ async fn sample_configured_conversation_history(
     arguments: &str,
     guardian_policy: Option<&str>,
     guardian_config: &str,
+    model_defaults: Option<GuardianV2ModelConfig>,
 ) -> Result<(serde_json::Value, TestCodex, ExtensionRegistry<Config>)> {
     let thread_server = responses::start_mock_server().await;
     let guardian_policy = guardian_policy.map(str::to_owned);
     let guardian_config = guardian_config.to_owned();
-    let test = test_codex()
+    let has_model_defaults = model_defaults.is_some();
+    let builder = test_codex()
         .with_auth(CodexAuth::create_dummy_chatgpt_auth_for_testing())
         .with_model_info_override("codex-auto-review", |model_info| {
             model_info
@@ -157,9 +267,19 @@ async fn sample_configured_conversation_history(
                 std::fs::write(home.join("config.toml"), guardian_config)
                     .expect("Guardian v2 configuration should be written");
             }
+        });
+    let mut builder = if let Some(model_defaults) = model_defaults {
+        builder.with_model_info_override("gpt-5.5", move |model| {
+            model
+                .model_messages
+                .as_mut()
+                .expect("test model should expose model messages")
+                .guardian_v2 = Some(model_defaults);
         })
-        .build_with_auto_env(&thread_server)
-        .await?;
+    } else {
+        builder
+    };
+    let test = builder.build_with_auto_env(&thread_server).await?;
     let events = vec![
         ev_assistant_message("sample", r#"{"scores":{"action_risk":0.8}}"#),
         ev_completed("response-1"),
@@ -182,6 +302,14 @@ async fn sample_configured_conversation_history(
     let registry = builder.build();
     let session_store = ExtensionData::new("session-1");
     let thread_store = test.codex.thread_extension_data();
+    if has_model_defaults {
+        let parent_model = test
+            .thread_manager
+            .get_models_manager()
+            .get_model_info("gpt-5.5", &config.to_models_manager_config())
+            .await;
+        thread_store.insert(parent_model);
+    }
     assert_eq!(
         registry
             .approval_review(&session_store, thread_store, "review action")
@@ -238,9 +366,11 @@ async fn contributor_uses_configured_prompt_effort_threshold_and_transcript() ->
 enabled = true
 classifier_instructions = "Use the experimental security classification prompt."
 review_threshold = 0.60
+max_tool_call_lag = 2
 reasoning_effort = "minimal"
 max_action_tokens = 128
 max_classifier_instruction_tokens = 100000
+max_parent_compaction_tokens = 256
 
 [features.guardianv2.transcript]
 sources = ["tool_outputs", "reasoning"]
@@ -291,6 +421,7 @@ max_recent_non_user_entries = 8
         &arguments,
         Some(TEST_GUARDIAN_POLICY),
         configuration,
+        /*model_defaults*/ None,
     )
     .await?;
 
@@ -333,8 +464,15 @@ max_recent_non_user_entries = 8
 
     let session_store = ExtensionData::new("session-1");
     let thread_store = test.codex.thread_extension_data();
+    let score_progress = thread_store
+        .get::<GuardianV2ScoreProgress>()
+        .expect("Guardian v2 should track score progress per thread");
     tokio::time::timeout(Duration::from_secs(5), async {
-        while thread_store.get::<SecurityRiskScore>().is_none() {
+        while score_progress
+            .latest_scored_tool_call
+            .load(Ordering::Acquire)
+            == 0
+        {
             tokio::task::yield_now().await;
         }
     })
@@ -351,6 +489,228 @@ max_recent_non_user_entries = 8
     );
     thread_store.insert(SecurityRiskScore {
         scores: BTreeMap::from([("action_risk".to_owned(), 0.55)]),
+        sampled_at: None,
+    });
+    assert_eq!(
+        registry
+            .approval_review(&session_store, thread_store, "review action")
+            .await,
+        Some(ReviewDecision::Approved)
+    );
+
+    assert_eq!(
+        score_progress
+            .latest_scored_tool_call
+            .load(Ordering::Acquire),
+        1
+    );
+    score_progress
+        .latest_tool_call
+        .store(/*val*/ 3, Ordering::Release);
+    assert_eq!(
+        registry
+            .approval_review(&session_store, thread_store, "review action")
+            .await,
+        Some(ReviewDecision::Approved)
+    );
+
+    score_progress
+        .latest_tool_call
+        .store(/*val*/ 4, Ordering::Release);
+    assert_eq!(
+        registry
+            .approval_review(&session_store, thread_store, "review action")
+            .await,
+        None
+    );
+
+    score_progress
+        .latest_scored_tool_call
+        .store(/*val*/ 2, Ordering::Release);
+    assert_eq!(
+        registry
+            .approval_review(&session_store, thread_store, "review action")
+            .await,
+        Some(ReviewDecision::Approved)
+    );
+
+    Ok(())
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn contributor_includes_configured_transcript_images() -> Result<()> {
+    skip_if_no_network!(Ok(()));
+
+    let history = vec![
+        ResponseItem::Message {
+            id: None,
+            role: "user".to_owned(),
+            content: vec![
+                ContentItem::InputText {
+                    text: "Review what is shown on screen.".to_owned(),
+                },
+                ContentItem::InputImage {
+                    image_url: "data:image/png;base64,user-screenshot".to_owned(),
+                    detail: Some(ImageDetail::High),
+                },
+            ],
+            phase: None,
+            internal_chat_message_metadata_passthrough: None,
+        },
+        ResponseItem::FunctionCallOutput {
+            id: None,
+            call_id: "previous-call".to_owned(),
+            output: FunctionCallOutputPayload::from_content_items(vec![
+                FunctionCallOutputContentItem::InputText {
+                    text: "Screenshot captured.".to_owned(),
+                },
+                FunctionCallOutputContentItem::InputImage {
+                    image_url: "data:image/png;base64,tool-screenshot".to_owned(),
+                    detail: Some(ImageDetail::Low),
+                },
+            ]),
+            internal_chat_message_metadata_passthrough: None,
+        },
+    ];
+    let configuration = r#"
+[features.guardianv2]
+enabled = true
+
+[features.guardianv2.transcript]
+include_images = true
+"#;
+    let (request, _test, _registry) = sample_configured_conversation_history(
+        history,
+        r#"{"path":"README.md"}"#,
+        Some(TEST_GUARDIAN_POLICY),
+        configuration,
+        /*model_defaults*/ None,
+    )
+    .await?;
+    let content = request["input"][2]["content"]
+        .as_array()
+        .expect("Luna user content should be an array");
+
+    assert_eq!(
+        content[content.len() - 2..],
+        [
+            json!({
+                "type": "input_image",
+                "image_url": "data:image/png;base64,user-screenshot",
+            }),
+            json!({
+                "type": "input_image",
+                "image_url": "data:image/png;base64,tool-screenshot",
+            }),
+        ]
+    );
+
+    Ok(())
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn contributor_uses_model_defaults_and_preserves_local_overrides() -> Result<()> {
+    skip_if_no_network!(Ok(()));
+
+    let model_defaults = GuardianV2ModelConfig {
+        classifier_instructions: Some("Use the experimental model-owned prompt.".to_owned()),
+        review_threshold_basis_points: Some(6_000),
+        reasoning_effort: Some(ReasoningEffort::Minimal),
+        transcript: Some(GuardianV2TranscriptModelConfig {
+            sources: Some(vec!["reasoning".to_owned()]),
+            max_message_entry_tokens: Some(128),
+            max_message_transcript_tokens: Some(256),
+            ..Default::default()
+        }),
+        max_action_tokens: Some(128),
+        max_classifier_instruction_tokens: Some(256),
+        max_parent_compaction_tokens: Some(384),
+    };
+    let conversation_history = vec![
+        ResponseItem::Message {
+            id: None,
+            role: "user".to_owned(),
+            content: vec![ContentItem::InputText {
+                text: "Review the pending action.".to_owned(),
+            }],
+            phase: None,
+            internal_chat_message_metadata_passthrough: None,
+        },
+        ResponseItem::Reasoning {
+            id: None,
+            summary: vec![ReasoningItemReasoningSummary::SummaryText {
+                text: "Use the experimental transcript.".to_owned(),
+            }],
+            content: None,
+            encrypted_content: None,
+            internal_chat_message_metadata_passthrough: None,
+        },
+        ResponseItem::FunctionCall {
+            id: None,
+            name: "list_dir".to_owned(),
+            namespace: None,
+            arguments: r#"{"path":"."}"#.to_owned(),
+            encrypted_function_args: None,
+            call_id: "previous-call".to_owned(),
+            internal_chat_message_metadata_passthrough: None,
+        },
+    ];
+    let arguments = json!({"body": "x".repeat(4_000)}).to_string();
+    let local_config = "[features.guardianv2]\nenabled = true\nreview_threshold = 0.70\n";
+    let (request, test, registry) = sample_configured_conversation_history(
+        conversation_history,
+        &arguments,
+        Some(TEST_GUARDIAN_POLICY),
+        local_config,
+        Some(model_defaults),
+    )
+    .await?;
+
+    assert_eq!(
+        request["input"][1],
+        json!({
+            "type": "message",
+            "role": "developer",
+            "content": [{
+                "type": "input_text",
+                "text": format!(
+                    "Use the experimental model-owned prompt.\n\n# Security Policy\n{TEST_GUARDIAN_POLICY}"
+                )
+            }]
+        })
+    );
+    assert_eq!(request["reasoning"]["effort"], "minimal");
+    let content = request["input"][2]["content"]
+        .as_array()
+        .expect("Luna user content should be an array");
+    let transcript = content
+        .iter()
+        .filter_map(|item| item["text"].as_str())
+        .collect::<Vec<_>>();
+    assert!(transcript.contains(&"[2] reasoning: Use the experimental transcript.\n"));
+    assert!(!transcript.iter().any(|entry| entry.contains("list_dir")));
+    let action = content[content.len() - 2]["text"]
+        .as_str()
+        .expect("planned action should be a text item");
+    assert!(action.len() <= TruncationPolicy::Tokens(/*limit*/ 128).byte_budget());
+
+    let session_store = ExtensionData::new("session-1");
+    let thread_store = test.codex.thread_extension_data();
+    assert_eq!(
+        thread_store
+            .get::<crate::config::GuardianV2Config>()
+            .expect("Guardian v2 configuration should be installed")
+            .max_parent_compaction_tokens,
+        384
+    );
+    tokio::time::timeout(Duration::from_secs(5), async {
+        while thread_store.get::<SecurityRiskScore>().is_none() {
+            tokio::task::yield_now().await;
+        }
+    })
+    .await?;
+    thread_store.insert(SecurityRiskScore {
+        scores: BTreeMap::from([("action_risk".to_owned(), 0.65)]),
         sampled_at: None,
     });
     assert_eq!(
@@ -688,7 +1048,16 @@ async fn contributor_reuses_the_latest_compatible_parent_compaction() -> Result<
     skip_if_no_network!(Ok(()));
 
     let thread_server = responses::start_mock_server().await;
-    let test = test_codex().build_with_auto_env(&thread_server).await?;
+    let test = test_codex()
+        .with_pre_build_hook(|home| {
+            std::fs::write(
+                home.join("config.toml"),
+                "[features.guardianv2]\nenabled = true\nmax_parent_compaction_tokens = 256\n",
+            )
+            .expect("Guardian v2 parent compaction configuration should be written");
+        })
+        .build_with_auto_env(&thread_server)
+        .await?;
     let events = vec![
         ev_assistant_message("sample", r#"{"scores":{"action_risk":0.25}}"#),
         ev_completed("response-1"),
@@ -792,9 +1161,70 @@ async fn contributor_reuses_the_latest_compatible_parent_compaction() -> Result<
     );
     assert_eq!(
         request["input"][2],
-        serde_json::to_value(latest_compaction)?
+        serde_json::to_value(&latest_compaction)?
     );
     assert_eq!(request["input"][3]["role"], "user");
+
+    let previous_score = tokio::time::timeout(Duration::from_secs(5), async {
+        loop {
+            if let Some(score) = thread_store.get::<SecurityRiskScore>() {
+                return score;
+            }
+            tokio::task::yield_now().await;
+        }
+    })
+    .await?;
+    assert_eq!(previous_score.scores.get("action_risk"), Some(&0.25));
+    assert_eq!(
+        registry
+            .approval_review(&session_store, thread_store, "review action")
+            .await,
+        Some(ReviewDecision::Approved)
+    );
+
+    let oversized_compaction = ResponseItem::Compaction {
+        id: Some(ResponseItemId::from_server("cmp_oversized".to_owned())),
+        encrypted_content: "a".repeat(TruncationPolicy::Tokens(/*limit*/ 256).byte_budget()),
+        internal_chat_message_metadata_passthrough: None,
+    };
+    registry.tool_lifecycle_contributors()[0]
+        .on_tool_start(ToolStartInput {
+            session_store: &session_store,
+            thread_store,
+            turn_store: &turn_store,
+            turn_id: "turn-1",
+            call_id: "call-2",
+            tool_name: &tool_name,
+            payload: &tool_payload,
+            conversation_history: Arc::new(TestConversationHistory(vec![
+                latest_compaction,
+                oversized_compaction,
+            ])),
+            source: ToolCallSource::Direct,
+        })
+        .await;
+
+    let fail_closed_score = thread_store
+        .get::<SecurityRiskScore>()
+        .expect("an oversized compaction should immediately receive the maximum risk score");
+    assert_eq!(
+        fail_closed_score.as_ref(),
+        &SecurityRiskScore {
+            scores: BTreeMap::from([("action_risk".to_owned(), 1.0)]),
+            sampled_at: fail_closed_score.sampled_at,
+        }
+    );
+    assert_eq!(
+        registry
+            .approval_review(&session_store, thread_store, "review action")
+            .await,
+        None
+    );
+    assert_eq!(
+        server.connections().iter().map(Vec::len).sum::<usize>(),
+        1,
+        "an oversized latest compaction must bypass Luna rather than reuse stale context"
+    );
 
     Ok(())
 }

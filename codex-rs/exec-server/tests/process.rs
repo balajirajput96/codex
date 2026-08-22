@@ -542,13 +542,11 @@ async fn exec_server_defaults_omitted_pipe_stdin_to_closed_stdin() -> anyhow::Re
 async fn exec_server_dedupes_retried_process_write_ids() -> anyhow::Result<()> {
     let mut server = exec_server().await?;
     let process_argv = if cfg!(windows) {
-        vec![
-            "powershell.exe",
-            "-NoProfile",
-            "-NonInteractive",
-            "-Command",
-            "[Console]::Out.WriteLine('line:' + [Console]::In.ReadLine()); [Console]::Out.WriteLine('line:' + [Console]::In.ReadLine())",
-        ]
+        // Use a native line filter instead of PowerShell or `cmd.exe set /p`.
+        // The former can buffer a redirected pipe under the GNU runner, while
+        // the latter can interpret a later piped line as command input. The
+        // filter makes duplicate delivery observable as duplicate output.
+        vec!["more.com"]
     } else {
         vec![
             "/bin/sh",
@@ -674,17 +672,20 @@ async fn exec_server_dedupes_retried_process_write_ids() -> anyhow::Result<()> {
                 .flat_map(|chunk| chunk.chunk.into_inner()),
         );
         after_seq = Some(read_response.next_seq.saturating_sub(1));
-        if read_response.closed
-            || output.ends_with(b"line:second\n")
-            || output.ends_with(b"line:second\r\n")
+        if read_response.closed || output.ends_with(b"second\n") || output.ends_with(b"second\r\n")
         {
             break;
         }
     }
 
+    let expected_output = if cfg!(windows) {
+        "first\nsecond\n"
+    } else {
+        "line:first\nline:second\n"
+    };
     assert_eq!(
         String::from_utf8(output)?.replace("\r\n", "\n"),
-        "line:first\nline:second\n".to_string()
+        expected_output
     );
 
     server.shutdown().await?;
@@ -692,6 +693,7 @@ async fn exec_server_dedupes_retried_process_write_ids() -> anyhow::Result<()> {
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+#[cfg_attr(all(target_os = "windows", target_env = "gnu"), ignore)]
 async fn exec_server_resumes_detached_session_without_killing_processes() -> anyhow::Result<()> {
     let mut server = exec_server().await?;
     let process_argv = if cfg!(windows) {

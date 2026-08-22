@@ -49,7 +49,7 @@ async fn parent_owned_thread_blocks_all_direct_input_entry_points() {
         "/side inspect this",
         "/archive",
         "/rename",
-        "/agent parent",
+        "/subagents parent",
         "/diff now",
         "!echo blocked",
         " !echo blocked",
@@ -1673,92 +1673,6 @@ async fn alt_up_edits_most_recent_queued_message() {
     assert_eq!(
         chat.input_queue.queued_user_messages.front().unwrap().text,
         "first queued"
-    );
-}
-
-#[tokio::test]
-async fn vim_normal_history_up_edits_queued_message_without_duplicating_it() {
-    let (mut chat, _rx, _op_rx) = make_chatwidget_manual(/*model_override*/ None).await;
-    chat.thread_id = Some(ThreadId::new());
-    chat.toggle_vim_mode_and_notify();
-    chat.bottom_pane.set_task_running(/*running*/ true);
-    chat.bottom_pane
-        .set_composer_text("first queued message".to_string(), Vec::new(), Vec::new());
-    chat.handle_key_event(KeyEvent::new(KeyCode::Tab, KeyModifiers::NONE));
-
-    for expected in ["first queued message", "first queued message edited"] {
-        chat.handle_key_event(KeyEvent::new(KeyCode::Char('k'), KeyModifiers::NONE));
-
-        assert_eq!(chat.bottom_pane.composer_text(), expected);
-        assert!(chat.input_queue.queued_user_messages.is_empty());
-        assert!(
-            chat.input_queue
-                .queued_user_message_history_records
-                .is_empty()
-        );
-
-        chat.bottom_pane
-            .set_composer_text(format!("{expected} edited"), Vec::new(), Vec::new());
-        chat.handle_key_event(KeyEvent::new(KeyCode::Tab, KeyModifiers::NONE));
-        assert_eq!(chat.input_queue.queued_user_messages.len(), 1);
-        assert_eq!(
-            chat.input_queue.queued_user_message_history_records.len(),
-            1
-        );
-    }
-
-    assert_eq!(
-        chat.queued_user_message_texts(),
-        vec!["first queued message edited edited".to_string()]
-    );
-}
-
-#[tokio::test]
-async fn vim_normal_queued_message_edit_uses_remapped_history_up() {
-    let (mut chat, _rx, _op_rx) = make_chatwidget_manual(/*model_override*/ None).await;
-    let mut keymap = crate::keymap::RuntimeKeymap::defaults();
-    keymap.vim_normal.move_up = vec![crate::key_hint::plain(KeyCode::F(2))];
-    chat.bottom_pane.set_keymap_bindings(&keymap);
-    chat.toggle_vim_mode_and_notify();
-    chat.bottom_pane.set_task_running(/*running*/ true);
-    chat.input_queue
-        .queued_user_messages
-        .push_back(UserMessage::from("queued message").into());
-    chat.input_queue
-        .queued_user_message_history_records
-        .push_back(UserMessageHistoryRecord::UserMessageText);
-    chat.refresh_pending_input_preview();
-
-    chat.handle_key_event(KeyEvent::new(KeyCode::Char('k'), KeyModifiers::NONE));
-
-    assert!(chat.bottom_pane.composer_is_empty());
-    assert_eq!(chat.input_queue.queued_user_messages.len(), 1);
-
-    chat.handle_key_event(KeyEvent::new(KeyCode::F(2), KeyModifiers::NONE));
-
-    assert_eq!(chat.bottom_pane.composer_text(), "queued message");
-    assert!(chat.input_queue.queued_user_messages.is_empty());
-    assert!(
-        chat.input_queue
-            .queued_user_message_history_records
-            .is_empty()
-    );
-
-    let width = 80;
-    let height = chat.desired_height(width);
-    let mut terminal = ratatui::Terminal::new(ratatui::backend::TestBackend::new(width, height))
-        .expect("create terminal");
-    terminal
-        .draw(|frame| chat.render(frame.area(), frame.buffer_mut()))
-        .expect("render restored queued message");
-    insta::assert_snapshot!(
-        normalized_backend_snapshot(terminal.backend())
-            .lines()
-            .filter(|line| line.contains("queued message"))
-            .map(|line| line.trim_matches('"').trim())
-            .collect::<Vec<_>>()
-            .join("\n"),
-        @"› queued message"
     );
 }
 

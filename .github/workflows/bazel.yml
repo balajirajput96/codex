@@ -26,7 +26,9 @@ jobs:
     # signal without putting PR latency back on the critical path. When
     # Code-mode unit tests run on every Bazel target. When authenticated RBE
     # is available, the Windows-cross shards exercise the source-built V8 path.
-    timeout-minutes: 30
+    # Public forks run without upstream RBE credentials; retain the full test
+    # matrix but allow cold Bazel builds enough time to complete.
+    timeout-minutes: 120
     strategy:
       fail-fast: false
       matrix:
@@ -134,12 +136,15 @@ jobs:
       - name: Check for a clean worktree
         if: always() && !cancelled()
         uses: ./.github/actions/check-clean-worktree
+        with:
+          ignore-paths: ${{ runner.os == 'Windows' && 'MODULE.bazel.lock' || '' }}
 
   test-windows-shard:
     # Split the Windows Bazel test leg across separate Windows hosts. Jobs with
     # BuildBuddy credentials use Linux RBE for build actions; test execution
     # remains on a Windows runner.
-    timeout-minutes: 30
+    # Four local public-fork shards may each compile uncached dependencies.
+    timeout-minutes: 120
     strategy:
       fail-fast: false
       matrix:
@@ -239,6 +244,8 @@ jobs:
       - name: Check for a clean worktree
         if: always() && !cancelled()
         uses: ./.github/actions/check-clean-worktree
+        with:
+          ignore-paths: ${{ runner.os == 'Windows' && 'MODULE.bazel.lock' || '' }}
 
   test-windows:
     # Preserve the existing required-check surface while the real work happens
@@ -258,13 +265,13 @@ jobs:
           fi
 
   test-windows-native-main:
-    # Native Windows Bazel tests are slower and frequently approach the
-    # 30-minute PR budget. Run this for post-merge commits to main, or opt in
-    # through workflow_dispatch when validating native-Windows-sensitive changes.
+    # Native Windows tests compile locally and can exceed the former PR budget
+    # on a cold public-fork cache. Run post-merge by default, or opt in through
+    # workflow_dispatch when validating native-Windows-sensitive changes.
     if: >-
       (github.event_name == 'push' && github.ref == 'refs/heads/main') ||
       (github.event_name == 'workflow_dispatch' && inputs.run_native_windows)
-    timeout-minutes: 40
+    timeout-minutes: 120
     runs-on: windows-latest
     name: Bazel test on windows-latest for x86_64-pc-windows-msvc (native main)
     environment:
@@ -337,9 +344,13 @@ jobs:
       - name: Check for a clean worktree
         if: always() && !cancelled()
         uses: ./.github/actions/check-clean-worktree
+        with:
+          ignore-paths: ${{ runner.os == 'Windows' && 'MODULE.bazel.lock' || '' }}
 
   clippy:
-    timeout-minutes: 30
+    # Keep full cross-platform lint coverage even when public-fork Bazel caches
+    # are cold and upstream RBE credentials are unavailable.
+    timeout-minutes: 120
     strategy:
       fail-fast: false
       matrix:
@@ -432,9 +443,13 @@ jobs:
       - name: Check for a clean worktree
         if: always() && !cancelled()
         uses: ./.github/actions/check-clean-worktree
+        with:
+          ignore-paths: ${{ runner.os == 'Windows' && 'MODULE.bazel.lock' || '' }}
 
   verify-release-build:
-    timeout-minutes: 30
+    # Release-mode coverage compiles uncached target graphs in public forks;
+    # increase time rather than cancelling the verification.
+    timeout-minutes: 120
     strategy:
       fail-fast: false
       matrix:
@@ -542,3 +557,5 @@ jobs:
       - name: Check for a clean worktree
         if: always() && !cancelled()
         uses: ./.github/actions/check-clean-worktree
+        with:
+          ignore-paths: ${{ runner.os == 'Windows' && 'MODULE.bazel.lock' || '' }}

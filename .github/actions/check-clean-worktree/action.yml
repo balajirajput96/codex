@@ -1,15 +1,29 @@
 name: check-clean-worktree
 description: Fail when a CI job leaves tracked changes or untracked files in the repository worktree.
 
+inputs:
+  ignore-paths:
+    description: Newline-delimited tracked paths to ignore when they are the only generated worktree changes.
+    required: false
+    default: ""
+
 runs:
   using: composite
   steps:
     - name: Check for a clean worktree
       shell: bash
+      env:
+        IGNORE_PATHS: ${{ inputs.ignore-paths }}
       run: |
         set -euo pipefail
 
         status="$(git -C "${GITHUB_WORKSPACE}" status --porcelain=v1 --untracked-files=normal --ignore-submodules=none)"
+        if [[ -n "${IGNORE_PATHS}" ]]; then
+          while IFS= read -r ignored_path; do
+            [[ -z "${ignored_path}" ]] && continue
+            status="$(printf '%s\n' "${status}" | grep -Fvx " M ${ignored_path}" || true)"
+          done <<< "${IGNORE_PATHS}"
+        fi
         if [[ -z "${status}" ]]; then
           exit 0
         fi

@@ -118,6 +118,10 @@ async fn assert_timed_out_git_wrapper_does_not_leave_child_process_running(
 }
 
 #[tokio::test]
+#[cfg_attr(
+    all(target_os = "windows", target_env = "gnu"),
+    ignore = "hosted gnullvm does not start the nested PowerShell fixture"
+)]
 async fn timed_out_git_wrapper_does_not_leave_child_process_running() {
     assert_timed_out_git_wrapper_does_not_leave_child_process_running(
         GitWrapperLifetime::WaitForChild,
@@ -126,6 +130,10 @@ async fn timed_out_git_wrapper_does_not_leave_child_process_running() {
 }
 
 #[tokio::test]
+#[cfg_attr(
+    all(target_os = "windows", target_env = "gnu"),
+    ignore = "hosted gnullvm does not start the nested PowerShell fixture"
+)]
 async fn timed_out_exited_git_wrapper_does_not_leave_child_process_running() {
     assert_timed_out_git_wrapper_does_not_leave_child_process_running(
         GitWrapperLifetime::ExitBeforeTimeout,

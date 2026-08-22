@@ -603,6 +603,12 @@
             "in_app_browser": {
               "type": "boolean"
             },
+            "in_app_chat": {
+              "type": "boolean"
+            },
+            "in_app_dictation": {
+              "type": "boolean"
+            },
             "in_app_updates": {
               "type": "boolean"
             },
@@ -1251,6 +1257,17 @@
           "minimum": 100.0,
           "type": "integer"
         },
+        "max_parent_compaction_tokens": {
+          "format": "uint",
+          "maximum": 100000.0,
+          "minimum": 100.0,
+          "type": "integer"
+        },
+        "max_tool_call_lag": {
+          "format": "uint",
+          "minimum": 0.0,
+          "type": "integer"
+        },
         "reasoning_effort": {
           "$ref": "#/definitions/ReasoningEffort"
         },
@@ -1270,6 +1287,10 @@
       "additionalProperties": false,
       "description": "Bounds and optional sources for the Guardian v2 conversation transcript.",
       "properties": {
+        "include_images": {
+          "description": "Include recent screenshots from messages and configured tool outputs.",
+          "type": "boolean"
+        },
         "max_message_entry_tokens": {
           "format": "uint",
           "maximum": 100000.0,
@@ -3231,6 +3252,12 @@
         "include_instructions": {
           "description": "Whether turns receive the automatic skills instructions block.",
           "type": "boolean"
+        },
+        "max_context_tokens": {
+          "description": "Maximum tokens used by the available-skills catalog. Defaults to 2% of the model context window and is capped at 10,000 tokens when set.",
+          "format": "uint",
+          "minimum": 1.0,
+          "type": "integer"
         }
       },
       "type": "object"
@@ -5169,10 +5196,6 @@
       "description": "Experimental / do not use. Replaces the synthesized realtime startup context appended to websocket session instructions. An empty string disables startup context injection entirely.",
       "type": "string"
     },
-    "experimental_thread_config_endpoint": {
-      "description": "Experimental / do not use. When set, app-server fetches thread-scoped config from a remote service at this endpoint.",
-      "type": "string"
-    },
     "experimental_thread_store": {
       "allOf": [
         {
@@ -5359,6 +5382,12 @@
           "type": "boolean"
         },
         "in_app_browser": {
+          "type": "boolean"
+        },
+        "in_app_chat": {
+          "type": "boolean"
+        },
+        "in_app_dictation": {
           "type": "boolean"
         },
         "in_app_updates": {
