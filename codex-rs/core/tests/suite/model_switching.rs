@@ -55,10 +55,12 @@ use core_test_support::test_codex::test_codex;
 use core_test_support::test_codex::turn_permission_fields;
 use core_test_support::wait_for_event;
 use core_test_support::wait_for_event_match;
+use core_test_support::wait_for_event_with_timeout;
 use pretty_assertions::assert_eq;
 use serde_json::json;
 use std::collections::HashMap;
 use test_case::test_case;
+use tokio::time::Duration;
 use wiremock::MockServer;
 
 fn read_only_user_turn(test: &TestCodex, items: Vec<UserInput>, model: String) -> TurnInputRequest {
@@ -1264,14 +1266,21 @@ async fn thread_rollback_after_generated_image_drops_entire_image_turn_history()
             image_model_slug.to_string(),
         ))
         .await?;
-    wait_for_event(&test.codex, |ev| matches!(ev, EventMsg::TurnComplete(_))).await;
+    wait_for_event_with_timeout(
+        &test.codex,
+        |ev| matches!(ev, EventMsg::TurnComplete(_)),
+        Duration::from_secs(30),
+    )
+    .await;
 
     test.codex
         .submit(Op::ThreadRollback { num_turns: 1 })
         .await?;
-    wait_for_event(&test.codex, |ev| {
-        matches!(ev, EventMsg::ThreadRolledBack(_))
-    })
+    wait_for_event_with_timeout(
+        &test.codex,
+        |ev| matches!(ev, EventMsg::ThreadRolledBack(_)),
+        Duration::from_secs(30),
+    )
     .await;
 
     test.codex
@@ -1284,7 +1293,12 @@ async fn thread_rollback_after_generated_image_drops_entire_image_turn_history()
             image_model_slug.to_string(),
         ))
         .await?;
-    wait_for_event(&test.codex, |ev| matches!(ev, EventMsg::TurnComplete(_))).await;
+    wait_for_event_with_timeout(
+        &test.codex,
+        |ev| matches!(ev, EventMsg::TurnComplete(_)),
+        Duration::from_secs(30),
+    )
+    .await;
 
     let requests = responses.requests();
     assert_eq!(requests.len(), 2, "expected two model requests");
