@@ -267,7 +267,13 @@ where
     F: FnMut(&codex_protocol::protocol::EventMsg) -> bool,
 {
     use tokio::time::Duration;
-    wait_for_event_with_timeout(codex, predicate, Duration::from_secs(1)).await
+    let wait_time = if cfg!(target_os = "macos") {
+        // macOS CI runs this suite across many concurrent Bazel shards.
+        Duration::from_secs(20)
+    } else {
+        Duration::from_secs(1)
+    };
+    wait_for_event_with_timeout(codex, predicate, wait_time).await
 }
 
 /// Waits for a configured MCP server to finish startup and requires it to be ready.
