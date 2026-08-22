@@ -14,6 +14,14 @@ pub(crate) struct HostHarness {
     pub(crate) endpoint: String,
 }
 
+const HOST_START_TIMEOUT: Duration = if cfg!(target_os = "macos") {
+    // macOS CI runs many Bazel test shards concurrently and cold host startup
+    // can exceed the normal readiness window without indicating a deadlock.
+    Duration::from_secs(30)
+} else {
+    Duration::from_secs(10)
+};
+
 impl HostHarness {
     pub(crate) async fn start(listen_url: &str) -> Result<Self> {
         let host_program = codex_utils_cargo_bin::cargo_bin("codex-code-mode-host")?;
@@ -29,10 +37,7 @@ impl HostHarness {
             .stdout
             .take()
             .context("code-mode host stdout was not captured")?;
-        let endpoint = timeout(
-            Duration::from_secs(/*secs*/ 10),
-            BufReader::new(stdout).lines().next_line(),
-        )
+        let endpoint = timeout(HOST_START_TIMEOUT, BufReader::new(stdout).lines().next_line())
         .await
         .context("timed out waiting for code-mode host endpoint")??
         .context("code-mode host exited before publishing its endpoint")?;
