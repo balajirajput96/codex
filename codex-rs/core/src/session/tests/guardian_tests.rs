@@ -506,8 +506,15 @@ async fn strict_auto_review_turn_grant_forces_guardian_for_shell_command_policy_
     );
     #[allow(deprecated)]
     let workdir = Some(turn_context.cwd.to_string_lossy().to_string());
-    let expiration_ms: u64 = if cfg!(windows) { 2_500 } else { 1_000 };
     let step_context = StepContext::for_test(Arc::clone(&turn_context));
+    // The GNU Windows test runtime can need more than one second to launch a
+    // shell process under its MSVC execution host. This test verifies guardian
+    // policy behavior, not command timeout handling.
+    let timeout_ms = if cfg!(all(target_os = "windows", target_env = "gnu")) {
+        5_000_u64
+    } else {
+        1_000_u64
+    };
     let resp = handler
         .handle(ToolInvocation {
             session: Arc::clone(&session),
@@ -523,7 +530,7 @@ async fn strict_auto_review_turn_grant_forces_guardian_for_shell_command_policy_
                     "command": "echo hi",
                     "login": false,
                     "workdir": workdir,
-                    "timeout_ms": expiration_ms,
+                    "timeout_ms": timeout_ms,
                 })
                 .to_string(),
             },

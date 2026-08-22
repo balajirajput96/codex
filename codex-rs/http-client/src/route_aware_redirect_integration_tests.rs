@@ -119,14 +119,29 @@ fn spawn_response(
 fn read_http_headers(stream: &mut impl Read) -> String {
     let mut buffer = Vec::new();
     let mut chunk = [0_u8; 1024];
+    let deadline = Instant::now() + Duration::from_secs(2);
     loop {
-        let bytes_read = stream.read(&mut chunk).expect("HTTP headers should read");
-        if bytes_read == 0 {
-            break;
-        }
-        buffer.extend_from_slice(&chunk[..bytes_read]);
-        if buffer.windows(4).any(|window| window == b"\r\n\r\n") {
-            break;
+        match stream.read(&mut chunk) {
+            Ok(0) => break,
+            Ok(bytes_read) => {
+                buffer.extend_from_slice(&chunk[..bytes_read]);
+                if buffer.windows(4).any(|window| window == b"\r\n\r\n") {
+                    break;
+                }
+            }
+            // On Windows, an accepted socket inherited from a nonblocking
+            // listener can report WouldBlock before the client sends headers.
+            // Treat it like the configured read timeout and retry briefly.
+            Err(error)
+                if matches!(
+                    error.kind(),
+                    io::ErrorKind::WouldBlock | io::ErrorKind::TimedOut
+                ) =>
+            {
+                assert!(Instant::now() < deadline, "HTTP headers timed out: {error}");
+                std::thread::sleep(Duration::from_millis(10));
+            }
+            Err(error) => panic!("HTTP headers should read: {error}"),
         }
     }
     String::from_utf8_lossy(&buffer).into_owned()
