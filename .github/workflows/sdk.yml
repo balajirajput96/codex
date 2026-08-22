@@ -44,7 +44,7 @@ jobs:
     runs-on: ubuntu-24.04
     # This aggregate performs a cold Bazel Codex build before package build,
     # lint, and tests; preserve all coverage and allow public-fork caches time.
-    timeout-minutes: 120
+    timeout-minutes: 180
     environment:
       name: bazel
       deployment: false
