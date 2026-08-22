@@ -145,13 +145,13 @@ fn write_rejecting_prompt_hook(home: &Path) {
 setlocal
 set /p payload=
 >>"{log_path}" echo %payload%
-echo %payload% | findstr /c:"\"prompt\":\"blocked\"" >nul && echo {{"decision":"block","reason":"blocked by queue hook"}}
+echo %payload% | findstr /c:"blocked" >nul && echo {{"decision":"block","reason":"blocked by queue hook"}}
 "#,
             log_path = log_path.display(),
         );
         std::fs::write(&script_path, script)
             .unwrap_or_else(|error| panic!("write queue hook script: {error}"));
-        format!(r#""{}""#, script_path.display())
+        script_path.display().to_string()
     } else {
         let script_path = home.join("queue_prompt_hook.py");
         let script = format!(
