@@ -6,6 +6,12 @@ name: Bazel
 on:
   workflow_call:
   workflow_dispatch:
+    inputs:
+      run_native_windows:
+        description: Run the slower native Windows MSVC Bazel test.
+        required: false
+        default: false
+        type: boolean
 
 concurrency:
   # Cancel previous actions from the same PR or branch except 'main' branch.
@@ -253,9 +259,11 @@ jobs:
 
   test-windows-native-main:
     # Native Windows Bazel tests are slower and frequently approach the
-    # 30-minute PR budget. Run this only for post-merge commits to main and give
-    # it a larger timeout.
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    # 30-minute PR budget. Run this for post-merge commits to main, or opt in
+    # through workflow_dispatch when validating native-Windows-sensitive changes.
+    if: >-
+      (github.event_name == 'push' && github.ref == 'refs/heads/main') ||
+      (github.event_name == 'workflow_dispatch' && inputs.run_native_windows)
     timeout-minutes: 40
     runs-on: windows-latest
     name: Bazel test on windows-latest for x86_64-pc-windows-msvc (native main)
