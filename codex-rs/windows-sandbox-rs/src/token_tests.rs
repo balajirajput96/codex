@@ -79,12 +79,10 @@ fn workspace_write_token_excludes_broad_host_restricting_sids() -> Result<()> {
     };
     let has_capability_sid =
         unsafe { token_has_restricting_sid(restricted_token, capability_sid.as_ptr()) };
-    let has_everyone_sid = unsafe {
-        token_has_restricting_sid(restricted_token, everyone_sid.as_mut_ptr().cast())
-    };
-    let has_logon_sid = unsafe {
-        token_has_restricting_sid(restricted_token, logon_sid.as_mut_ptr().cast())
-    };
+    let has_everyone_sid =
+        unsafe { token_has_restricting_sid(restricted_token, everyone_sid.as_mut_ptr().cast()) };
+    let has_logon_sid =
+        unsafe { token_has_restricting_sid(restricted_token, logon_sid.as_mut_ptr().cast()) };
     unsafe {
         CloseHandle(restricted_token);
         CloseHandle(base_token);
