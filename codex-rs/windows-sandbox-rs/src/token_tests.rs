@@ -67,3 +67,30 @@ fn elevated_token_includes_network_proxy_restricting_sid() -> Result<()> {
     assert!(has_network_proxy_sid?);
     Ok(())
 }
+
+#[test]
+fn workspace_write_token_excludes_broad_host_restricting_sids() -> Result<()> {
+    let capability_sid = LocalSid::from_string("S-1-5-21-10-20-30-40")?;
+    let base_token = unsafe { get_current_token_for_restriction()? };
+    let mut everyone_sid = unsafe { world_sid()? };
+    let mut logon_sid = unsafe { get_logon_sid_bytes(base_token)? };
+    let restricted_token = unsafe {
+        create_workspace_write_token_with_caps_from(base_token, &[capability_sid.as_ptr()])?
+    };
+    let has_capability_sid =
+        unsafe { token_has_restricting_sid(restricted_token, capability_sid.as_ptr()) };
+    let has_everyone_sid = unsafe {
+        token_has_restricting_sid(restricted_token, everyone_sid.as_mut_ptr().cast())
+    };
+    let has_logon_sid = unsafe {
+        token_has_restricting_sid(restricted_token, logon_sid.as_mut_ptr().cast())
+    };
+    unsafe {
+        CloseHandle(restricted_token);
+        CloseHandle(base_token);
+    }
+    assert!(has_capability_sid?);
+    assert!(!has_everyone_sid?);
+    assert!(!has_logon_sid?);
+    Ok(())
+}
