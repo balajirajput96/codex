@@ -37,7 +37,10 @@ impl HostHarness {
             .stdout
             .take()
             .context("code-mode host stdout was not captured")?;
-        let endpoint = timeout(HOST_START_TIMEOUT, BufReader::new(stdout).lines().next_line())
+        let endpoint = timeout(
+            HOST_START_TIMEOUT,
+            BufReader::new(stdout).lines().next_line(),
+        )
         .await
         .context("timed out waiting for code-mode host endpoint")??
         .context("code-mode host exited before publishing its endpoint")?;
