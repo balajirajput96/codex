@@ -157,7 +157,7 @@ if payload["prompt"] == "blocked":
             "UserPromptSubmit": [{
                 "hooks": [{
                     "type": "command",
-                    "command": format!("{python} {}", script_path.display()),
+                    "command": format!("{python} \"{}\"", script_path.display()),
                 }]
             }]
         }
