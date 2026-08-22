@@ -3982,7 +3982,10 @@ mod tests {
             let head = std::thread::spawn(move || {
                 let mut request = [0; 1024];
                 let _ = head_stream.read(&mut request);
-                std::thread::sleep(Duration::from_millis(50));
+                // Keep the HEAD connection open longer than the client budget
+                // so this test exercises the GET fallback. A sub-10ms client
+                // timeout flakes on loaded Windows CI workers.
+                std::thread::sleep(Duration::from_millis(500));
             });
 
             let (mut get_stream, _) = listener.accept().expect("accept GET probe request");
@@ -3998,7 +4001,7 @@ mod tests {
 
         let status = mcp_http_probe_url_with_timeout(
             &format!("http://{addr}/mcp"),
-            Duration::from_millis(10),
+            Duration::from_millis(200),
         )
         .await;
         server.join().expect("probe server thread should finish");
