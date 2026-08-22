@@ -134,10 +134,28 @@ fn install_registered_queue(
 }
 
 fn write_rejecting_prompt_hook(home: &Path) {
-    let script_path = home.join("queue_prompt_hook.py");
     let log_path = home.join("queue_prompt_hook.log");
-    let script = format!(
-        r#"import json
+    let command = if cfg!(windows) {
+        // The Bazel Windows test environment does not guarantee a Python executable on PATH.
+        // Use cmd.exe's built-in commands instead, and record the compact JSON input so the
+        // shared test can decode the prompt below.
+        let script_path = home.join("queue_prompt_hook.cmd");
+        let script = format!(
+            r#"@echo off
+setlocal
+set /p payload=
+>>"{log_path}" echo %payload%
+echo %payload% | findstr /c:"\"prompt\":\"blocked\"" >nul && echo {{"decision":"block","reason":"blocked by queue hook"}}
+"#,
+            log_path = log_path.display(),
+        );
+        std::fs::write(&script_path, script)
+            .unwrap_or_else(|error| panic!("write queue hook script: {error}"));
+        format!(r#""{}""#, script_path.display())
+    } else {
+        let script_path = home.join("queue_prompt_hook.py");
+        let script = format!(
+            r#"import json
 from pathlib import Path
 import sys
 
@@ -147,23 +165,44 @@ with Path(r"{log_path}").open("a", encoding="utf-8") as log:
 if payload["prompt"] == "blocked":
     print(json.dumps({{"decision": "block", "reason": "blocked by queue hook"}}))
 "#,
-        log_path = log_path.display(),
-    );
-    std::fs::write(&script_path, script)
-        .unwrap_or_else(|error| panic!("write queue hook script: {error}"));
-    let python = if cfg!(windows) { "python" } else { "python3" };
+            log_path = log_path.display(),
+        );
+        std::fs::write(&script_path, script)
+            .unwrap_or_else(|error| panic!("write queue hook script: {error}"));
+        format!("python3 \"{}\"", script_path.display())
+    };
     let hooks = serde_json::json!({
         "hooks": {
             "UserPromptSubmit": [{
                 "hooks": [{
                     "type": "command",
-                    "command": format!("{python} \"{}\"", script_path.display()),
+                    "command": command,
                 }]
             }]
         }
     });
     std::fs::write(home.join("hooks.json"), hooks.to_string())
         .unwrap_or_else(|error| panic!("write queue hooks: {error}"));
+}
+
+fn hook_log_prompts(home: &Path) -> anyhow::Result<Vec<String>> {
+    let hook_log = std::fs::read_to_string(home.join("queue_prompt_hook.log"))?;
+    if cfg!(windows) {
+        hook_log
+            .lines()
+            .map(|line| -> anyhow::Result<String> {
+                let input: serde_json::Value = serde_json::from_str(line)
+                    .with_context(|| format!("parse Windows hook input: {line}"))?;
+                input
+                    .get("prompt")
+                    .and_then(serde_json::Value::as_str)
+                    .map(str::to_owned)
+                    .context("Windows hook input has no prompt")
+            })
+            .collect()
+    } else {
+        Ok(hook_log.lines().map(str::to_owned).collect())
+    }
 }
 
 async fn test_queue() -> anyhow::Result<(Arc<dyn QueueStore>, TempDir)> {
@@ -696,10 +735,9 @@ async fn rejected_queue_messages_are_consumed_without_retrying_or_blocking_follo
         })
         .collect::<anyhow::Result<Vec<_>>>()?;
     assert_eq!(vec!["A", "C"], prompts);
-    let hook_log = std::fs::read_to_string(test.codex_home_path().join("queue_prompt_hook.log"))?;
     assert_eq!(
-        vec!["A", "blocked", "C"],
-        hook_log.lines().collect::<Vec<_>>()
+        vec!["A".to_string(), "blocked".to_string(), "C".to_string()],
+        hook_log_prompts(test.codex_home_path())?
     );
     assert!(queue.list(thread_id).await?.is_empty());
     assert_eq!(2, responses.requests().len());
@@ -739,8 +777,10 @@ async fn explicitly_started_rejected_queue_messages_are_consumed() -> anyhow::Re
     )
     .await;
     assert!(queue.list(thread_id).await?.is_empty());
-    let hook_log = std::fs::read_to_string(test.codex_home_path().join("queue_prompt_hook.log"))?;
-    assert_eq!(vec!["blocked"], hook_log.lines().collect::<Vec<_>>());
+    assert_eq!(
+        vec!["blocked".to_string()],
+        hook_log_prompts(test.codex_home_path())?
+    );
     assert!(responses.requests().is_empty());
     Ok(())
 }
