@@ -99,6 +99,17 @@ pub fn resolve_current_exe_for_launch(codex_home: &Path, fallback_executable: &s
     resolve_exe_for_launch(&source, codex_home)
 }
 
+pub(crate) fn resolve_command_for_launch(command: &[String], codex_home: &Path) -> Vec<String> {
+    let Some(program) = command.first() else {
+        return Vec::new();
+    };
+    let mut resolved = command.to_vec();
+    resolved[0] = resolve_exe_for_launch(Path::new(program), codex_home)
+        .to_string_lossy()
+        .into_owned();
+    resolved
+}
+
 pub fn resolve_exe_for_launch(source: &Path, codex_home: &Path) -> PathBuf {
     let Some(file_name) = source.file_name() else {
         return source.to_path_buf();
@@ -372,6 +383,7 @@ mod tests {
     use super::helper_bin_dir;
     use super::helper_version_suffix;
     use super::materialized_file_name;
+    use super::resolve_command_for_launch;
     use pretty_assertions::assert_eq;
     use std::fs;
     use std::path::Path;
@@ -460,6 +472,28 @@ mod tests {
             b"runner".as_slice(),
             fs::read(&runner_destination).expect("read runner")
         );
+    }
+
+    #[test]
+    fn resolve_command_for_launch_materializes_only_the_program_path() {
+        let tmp = TempDir::new().expect("tempdir");
+        let codex_home = tmp.path().join("codex-home");
+        let source = tmp.path().join("runtime.exe");
+        fs::write(&source, b"runtime").expect("runtime executable");
+        let command = vec![
+            source.to_string_lossy().into_owned(),
+            "--flag".to_string(),
+            "value".to_string(),
+        ];
+
+        let resolved = resolve_command_for_launch(&command, &codex_home);
+
+        assert_eq!(command[1..], resolved[1..]);
+        assert_eq!(
+            fs::read(&source).expect("read source"),
+            fs::read(&resolved[0]).expect("read materialized runtime")
+        );
+        assert!(Path::new(&resolved[0]).starts_with(helper_bin_dir(&codex_home)));
     }
 
     #[test]
