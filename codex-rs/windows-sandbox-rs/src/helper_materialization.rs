@@ -660,7 +660,7 @@ mod tests {
         .expect("write manifest");
 
         assert_eq!(
-            runfiles_manifest_source_path(&manifest, "codex-windows-sandbox-setup.exe"),
+            super::runfiles_manifest_source_path(&manifest, "codex-windows-sandbox-setup.exe"),
             Some(helper)
         );
     }
