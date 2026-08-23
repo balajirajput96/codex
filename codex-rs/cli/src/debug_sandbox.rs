@@ -20,6 +20,8 @@ use codex_core::exec_env::create_env;
 use codex_core::spawn::CODEX_SANDBOX_ENV_VAR;
 use codex_core::spawn::CODEX_SANDBOX_NETWORK_DISABLED_ENV_VAR;
 use codex_protocol::config_types::SandboxMode;
+#[cfg(any(target_os = "windows", test))]
+use codex_protocol::config_types::WindowsSandboxLevel;
 use codex_protocol::models::PermissionProfile;
 use codex_protocol::models::SandboxEnforcement;
 use codex_protocol::permissions::NetworkSandboxPolicy;
@@ -465,6 +467,21 @@ async fn run_command_under_sandbox(
     handle_exit_status(status);
 }
 
+#[cfg(any(target_os = "windows", test))]
+fn debug_windows_sandbox_level(
+    configured_level: WindowsSandboxLevel,
+    network_policy: &NetworkSandboxPolicy,
+) -> WindowsSandboxLevel {
+    if configured_level == WindowsSandboxLevel::RestrictedToken && network_policy.is_enabled() {
+        // The direct `codex sandbox` command has no managed proxy lifecycle. A network-enabled
+        // profile therefore needs the elevated backend's compatible sandbox identity rather than
+        // the legacy capability-only token used for offline restricted execution.
+        WindowsSandboxLevel::Elevated
+    } else {
+        configured_level
+    }
+}
+
 #[cfg(target_os = "windows")]
 async fn run_command_under_windows_session(
     config: &Config,
@@ -475,12 +492,15 @@ async fn run_command_under_windows_session(
     env: std::collections::HashMap<String, String>,
 ) -> ! {
     use codex_core::windows_sandbox::WindowsSandboxLevelExt;
-    use codex_protocol::config_types::WindowsSandboxLevel;
     use codex_windows_sandbox::WindowsSandboxProxySettingsMode;
     use codex_windows_sandbox::WindowsSandboxSessionRequest;
     use codex_windows_sandbox::spawn_windows_sandbox_session_for_level;
 
     let empty_paths: &[AbsolutePathBuf] = &[];
+    let windows_sandbox_level = debug_windows_sandbox_level(
+        WindowsSandboxLevel::from_config(config),
+        &permission_profile.network_sandbox_policy(),
+    );
     let spawned = spawn_windows_sandbox_session_for_level(WindowsSandboxSessionRequest {
         permission_profile,
         workspace_roots: workspace_roots.as_slice(),
@@ -488,7 +508,7 @@ async fn run_command_under_windows_session(
         command,
         cwd: cwd.as_path(),
         env_map: env,
-        windows_sandbox_level: WindowsSandboxLevel::from_config(config),
+        windows_sandbox_level,
         proxy_settings_mode: WindowsSandboxProxySettingsMode::Preserve,
         proxy_enforced: false,
         network_proxy_restricting_sid: None,
@@ -1033,6 +1053,31 @@ enabled = true
         );
 
         Ok(())
+    }
+
+    #[test]
+    fn network_enabled_debug_windows_sandbox_uses_elevated_backend() {
+        assert_eq!(
+            debug_windows_sandbox_level(
+                WindowsSandboxLevel::RestrictedToken,
+                &NetworkSandboxPolicy::Enabled,
+            ),
+            WindowsSandboxLevel::Elevated
+        );
+        assert_eq!(
+            debug_windows_sandbox_level(
+                WindowsSandboxLevel::RestrictedToken,
+                &NetworkSandboxPolicy::Restricted,
+            ),
+            WindowsSandboxLevel::RestrictedToken
+        );
+        assert_eq!(
+            debug_windows_sandbox_level(
+                WindowsSandboxLevel::Elevated,
+                &NetworkSandboxPolicy::Enabled,
+            ),
+            WindowsSandboxLevel::Elevated
+        );
     }
 
     #[tokio::test]
