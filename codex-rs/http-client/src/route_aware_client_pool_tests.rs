@@ -403,9 +403,27 @@ async fn reqwest_default_route_preserves_transport_redirects() {
                 }
             };
             let mut buffer = [0_u8; 1024];
-            let size = stream
-                .read(&mut buffer)
-                .expect("redirect server should read request");
+            let read_deadline = Instant::now() + Duration::from_secs(2);
+            let size = loop {
+                match stream.read(&mut buffer) {
+                    Ok(size) => break size,
+                    // An accepted socket can remain nonblocking on macOS and Windows.
+                    // Retry briefly until the client sends the request bytes.
+                    Err(error)
+                        if matches!(
+                            error.kind(),
+                            io::ErrorKind::WouldBlock | io::ErrorKind::TimedOut
+                        ) =>
+                    {
+                        assert!(
+                            Instant::now() < read_deadline,
+                            "redirect server should read request: {error}"
+                        );
+                        std::thread::sleep(Duration::from_millis(10));
+                    }
+                    Err(error) => panic!("redirect server should read request: {error}"),
+                }
+            };
             let request = String::from_utf8_lossy(&buffer[..size]);
             request_lines.push(
                 request
