@@ -82,6 +82,60 @@ async fn cmd_shell_runs_quoted_hook_command_path() {
     }
 }
 
+#[cfg(windows)]
+#[tokio::test]
+async fn cmd_hook_receives_newline_terminated_json() {
+    let temp = tempdir().expect("create temp dir");
+    let hook_path = temp.path().join("line-reader.cmd");
+    fs::write(
+        &hook_path,
+        "@echo off\r\nsetlocal\r\nset /p payload=\r\necho %payload%\r\n",
+    )
+    .expect("write line-reader hook");
+    let source_path =
+        AbsolutePathBuf::try_from(hook_path.clone()).expect("absolute hook command path");
+    let command = format!(r#""{}""#, hook_path.display());
+    let env = HashMap::new();
+    let handler = ConfiguredHandler {
+        event_name: HookEventName::UserPromptSubmit,
+        matcher: None,
+        timeout_sec: 10,
+        status_message: None,
+        additional_context_limit: Default::default(),
+        source_path,
+        source: HookSource::User,
+        display_order: 0,
+        kind: ConfiguredHandlerKind::Command {
+            command: command.clone(),
+            r#async: false,
+            env: env.clone(),
+        },
+    };
+    let (result_sender, _result_receiver) = async_channel::unbounded();
+    let runtime = CommandHookRuntime::new(
+        CommandShell {
+            program: String::new(),
+            args: Vec::new(),
+        },
+        ThreadId::new(),
+        result_sender,
+    );
+
+    let result = run_command(
+        &runtime,
+        &handler,
+        &command,
+        &env,
+        r#"{"prompt":"blocked"}"#,
+        temp.path(),
+    )
+    .await;
+
+    assert_eq!(result.exit_code, Some(0), "stderr: {}", result.stderr);
+    assert_eq!(result.stdout.trim(), r#"{"prompt":"blocked"}"#);
+    assert!(result.error.is_none());
+}
+
 #[tokio::test]
 async fn fast_exiting_hook_preserves_stdout_when_stdin_is_not_consumed() {
     let temp = tempdir().expect("create temp dir");

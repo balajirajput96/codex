@@ -136,35 +136,24 @@ fn install_registered_queue(
 fn write_rejecting_prompt_hook(home: &Path) {
     let log_path = home.join("queue_prompt_hook.log");
     let command = if cfg!(windows) {
-        // Bazel's Windows environments do not guarantee Python, and the hook JSON is
-        // EOF-terminated rather than newline-terminated. PowerShell's ReadToEnd handles that
-        // stream shape deterministically while the quoted .cmd path matches the hook runner.
-        let script_path = home.join("queue_prompt_hook.ps1");
+        // Command hooks receive one newline-terminated JSON record. Keep this fixture within
+        // cmd.exe so the capability-restricted legacy Windows sandbox does not need to launch a
+        // secondary helper process merely to read and classify the prompt.
+        let script_path = home.join("queue_prompt_hook.cmd");
         let script = format!(
-            r#"$payload = [Console]::In.ReadToEnd()
-$request = $payload | ConvertFrom-Json
-[System.IO.File]::AppendAllText('{log_path}', $payload + [Environment]::NewLine)
-if ($request.prompt -eq 'blocked') {{
-    [Console]::Out.WriteLine('{{"decision":"block","reason":"blocked by queue hook"}}')
-}}
-"#,
+            concat!(
+                "@echo off\r\n",
+                "setlocal\r\n",
+                "set /p \"payload=\"\r\n",
+                ">>\"{log_path}\" echo %payload%\r\n",
+                "set \"without_blocked=%payload:blocked=%\"\r\n",
+                "if not \"%without_blocked%\"==\"%payload%\" echo {{\"decision\":\"block\",\"reason\":\"blocked by queue hook\"}}\r\n",
+            ),
             log_path = log_path.display(),
         );
         std::fs::write(&script_path, script)
             .unwrap_or_else(|error| panic!("write Windows queue hook script: {error}"));
-
-        let wrapper_path = home.join("queue_prompt_hook.cmd");
-        let wrapper = format!(
-            "@echo off\r\n\"%SystemRoot%\\System32\\WindowsPowerShell\\v1.0\\powershell.exe\" -NoProfile -ExecutionPolicy Bypass -File \"{}\"\r\n",
-            script_path.display(),
-        );
-        std::fs::write(&wrapper_path, wrapper)
-            .unwrap_or_else(|error| panic!("write Windows queue hook wrapper: {error}"));
-        // The hook runner streams JSON without a trailing newline. `findstr` consumes that
-        // EOF-terminated input directly, avoiding the temporary child process that fails to
-        // start in the gnullvm test environment. Windows assertions verify the decision only.
-        r#"findstr /c:"blocked" >nul && echo {"decision":"block","reason":"blocked by queue hook"}"#
-            .to_string()
+        format!(r#""{}""#, script_path.display())
     } else {
         let script_path = home.join("queue_prompt_hook.py");
         let script = format!(

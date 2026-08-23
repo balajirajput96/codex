@@ -246,8 +246,9 @@ pub(crate) async fn run_command(
         job: process_tree_job,
     };
 
+    let input_record = format!("{input_json}\n");
     if let Some(mut stdin) = child.stdin.take()
-        && let Err(err) = stdin.write_all(input_json.as_bytes()).await
+        && let Err(err) = stdin.write_all(input_record.as_bytes()).await
         && err.kind() != ErrorKind::BrokenPipe
     {
         let _ = child.kill().await;
