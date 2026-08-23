@@ -136,23 +136,31 @@ fn install_registered_queue(
 fn write_rejecting_prompt_hook(home: &Path) {
     let log_path = home.join("queue_prompt_hook.log");
     let command = if cfg!(windows) {
-        // The Bazel Windows test environment does not guarantee a Python executable on PATH.
-        // Use cmd.exe's built-in commands instead, and record the compact JSON input so the
-        // shared test can decode the prompt below.
-        let script_path = home.join("queue_prompt_hook.cmd");
+        // Bazel's Windows environments do not guarantee Python, and the hook JSON is
+        // EOF-terminated rather than newline-terminated. PowerShell's ReadToEnd handles that
+        // stream shape deterministically while the quoted .cmd path matches the hook runner.
+        let script_path = home.join("queue_prompt_hook.ps1");
         let script = format!(
-            concat!(
-                "@echo off\r\n",
-                "setlocal\r\n",
-                "for /f \"usebackq delims=\" %%A in (`more.com`) do set \"payload=%%A\"\r\n",
-                ">>\"{log_path}\" echo %payload%\r\n",
-                "echo %payload% | findstr /c:\"blocked\" >nul && echo {{\"decision\":\"block\",\"reason\":\"blocked by queue hook\"}}\r\n",
-            ),
+            r#"$payload = [Console]::In.ReadToEnd()
+$request = $payload | ConvertFrom-Json
+[System.IO.File]::AppendAllText('{log_path}', $payload + [Environment]::NewLine)
+if ($request.prompt -eq 'blocked') {{
+    [Console]::Out.WriteLine('{{"decision":"block","reason":"blocked by queue hook"}}')
+}}
+"#,
             log_path = log_path.display(),
         );
         std::fs::write(&script_path, script)
-            .unwrap_or_else(|error| panic!("write queue hook script: {error}"));
-        format!(r#""{}""#, script_path.display())
+            .unwrap_or_else(|error| panic!("write Windows queue hook script: {error}"));
+
+        let wrapper_path = home.join("queue_prompt_hook.cmd");
+        let wrapper = format!(
+            "@echo off\r\n\"%SystemRoot%\\System32\\WindowsPowerShell\\v1.0\\powershell.exe\" -NoProfile -ExecutionPolicy Bypass -File \"{}\"\r\n",
+            script_path.display(),
+        );
+        std::fs::write(&wrapper_path, wrapper)
+            .unwrap_or_else(|error| panic!("write Windows queue hook wrapper: {error}"));
+        format!(r#""{}""#, wrapper_path.display())
     } else {
         let script_path = home.join("queue_prompt_hook.py");
         let script = format!(
