@@ -206,6 +206,9 @@ fn sibling_source_path(kind: HelperExecutable) -> Result<PathBuf> {
     if let Some(path) = cargo_bin_source_path(kind) {
         return Ok(path);
     }
+    if let Some(path) = bazel_runfiles_source_path(kind) {
+        return Ok(path);
+    }
 
     let exe = std::env::current_exe().context("resolve current executable for helper lookup")?;
     bundled_executable_path_for_exe(&exe, kind.file_name()).ok_or_else(|| {
@@ -220,6 +223,22 @@ fn sibling_source_path(kind: HelperExecutable) -> Result<PathBuf> {
 fn cargo_bin_source_path(kind: HelperExecutable) -> Option<PathBuf> {
     let path = PathBuf::from(std::env::var_os(kind.cargo_bin_env_key())?);
     path.is_file().then_some(path)
+}
+
+fn bazel_runfiles_source_path(kind: HelperExecutable) -> Option<PathBuf> {
+    let manifest = PathBuf::from(std::env::var_os("RUNFILES_MANIFEST_FILE")?);
+    runfiles_manifest_source_path(&manifest, kind.file_name())
+}
+
+fn runfiles_manifest_source_path(manifest: &Path, file_name: &str) -> Option<PathBuf> {
+    let contents = fs::read_to_string(manifest).ok()?;
+    contents.lines().find_map(|line| {
+        let (runfile, source) = line.split_once(' ')?;
+        (Path::new(runfile).file_name() == Some(OsStr::new(file_name))).then(|| {
+            let path = PathBuf::from(source);
+            path.is_file().then_some(path)
+        })?
+    })
 }
 
 pub(crate) fn bundled_executable_path_for_exe(exe: &Path, file_name: &str) -> Option<PathBuf> {
@@ -623,6 +642,27 @@ mod tests {
         let file_name = materialized_file_name(HelperExecutable::Setup, "test-suffix");
 
         assert_eq!(file_name, "codex-windows-sandbox-setup-test-suffix.exe");
+    }
+
+    #[test]
+    fn runfiles_manifest_lookup_resolves_helper_data() {
+        let tmp = TempDir::new().expect("tempdir");
+        let helper = tmp.path().join("codex-windows-sandbox-setup.exe");
+        let manifest = tmp.path().join("runfiles_manifest");
+        fs::write(&helper, b"setup").expect("write helper");
+        fs::write(
+            &manifest,
+            format!(
+                "workspace/codex-windows-sandbox-setup.exe {}\n",
+                helper.display()
+            ),
+        )
+        .expect("write manifest");
+
+        assert_eq!(
+            runfiles_manifest_source_path(&manifest, "codex-windows-sandbox-setup.exe"),
+            Some(helper)
+        );
     }
 
     #[test]
