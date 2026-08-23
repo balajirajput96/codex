@@ -472,7 +472,7 @@ fn debug_windows_sandbox_level(
     configured_level: WindowsSandboxLevel,
     network_policy: &NetworkSandboxPolicy,
 ) -> WindowsSandboxLevel {
-    if configured_level == WindowsSandboxLevel::RestrictedToken && network_policy.is_enabled() {
+    if configured_level != WindowsSandboxLevel::Elevated && network_policy.is_enabled() {
         // The direct `codex sandbox` command has no managed proxy lifecycle. A network-enabled
         // profile therefore needs the elevated backend's compatible sandbox identity rather than
         // the legacy capability-only token used for offline restricted execution.
@@ -1057,6 +1057,13 @@ enabled = true
 
     #[test]
     fn network_enabled_debug_windows_sandbox_uses_elevated_backend() {
+        assert_eq!(
+            debug_windows_sandbox_level(
+                WindowsSandboxLevel::Disabled,
+                &NetworkSandboxPolicy::Enabled,
+            ),
+            WindowsSandboxLevel::Elevated
+        );
         assert_eq!(
             debug_windows_sandbox_level(
                 WindowsSandboxLevel::RestrictedToken,
