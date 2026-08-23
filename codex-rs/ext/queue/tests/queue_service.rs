@@ -160,7 +160,11 @@ if ($request.prompt -eq 'blocked') {{
         );
         std::fs::write(&wrapper_path, wrapper)
             .unwrap_or_else(|error| panic!("write Windows queue hook wrapper: {error}"));
-        format!(r#""{}""#, wrapper_path.display())
+        // The hook runner streams JSON without a trailing newline. `findstr` consumes that
+        // EOF-terminated input directly, avoiding the temporary child process that fails to
+        // start in the gnullvm test environment. Windows assertions verify the decision only.
+        r#"findstr /c:"blocked" >nul && echo {"decision":"block","reason":"blocked by queue hook"}"#
+            .to_string()
     } else {
         let script_path = home.join("queue_prompt_hook.py");
         let script = format!(
