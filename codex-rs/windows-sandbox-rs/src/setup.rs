@@ -18,6 +18,7 @@ use crate::allow::AllowDenyPaths;
 use crate::allow::compute_allow_paths_for_permissions;
 use crate::deny_read_resolver::resolve_windows_deny_read_paths;
 use crate::helper_materialization::HelperExecutable;
+#[cfg(test)]
 use crate::helper_materialization::bundled_executable_path_for_exe;
 use crate::helper_materialization::helper_bin_dir;
 use crate::helper_materialization::resolve_helper_for_launch;
@@ -54,6 +55,7 @@ pub const ONLINE_USERNAME: &str = "CodexSandboxOnline";
 const ERROR_CANCELLED: u32 = 1223;
 const SECURITY_BUILTIN_DOMAIN_RID: u32 = 0x0000_0020;
 const DOMAIN_ALIAS_RID_ADMINS: u32 = 0x0000_0220;
+#[cfg(test)]
 const SETUP_EXE_FILENAME: &str = "codex-windows-sandbox-setup.exe";
 const USERPROFILE_ROOT_EXCLUSIONS: &[&str] = &[
     ".ssh",
@@ -853,6 +855,7 @@ fn find_setup_exe(codex_home: &Path) -> PathBuf {
     )
 }
 
+#[cfg(test)]
 fn find_setup_exe_for_current_exe(exe: &Path) -> Option<PathBuf> {
     bundled_executable_path_for_exe(exe, SETUP_EXE_FILENAME)
 }
