@@ -33,6 +33,13 @@ impl HelperExecutable {
         }
     }
 
+    fn cargo_bin_env_key(self) -> &'static str {
+        match self {
+            Self::CommandRunner => "CARGO_BIN_EXE_codex-command-runner",
+            Self::Setup => "CARGO_BIN_EXE_codex-windows-sandbox-setup",
+        }
+    }
+
     fn label(self) -> &'static str {
         match self {
             Self::CommandRunner => "command-runner",
@@ -196,13 +203,23 @@ fn store_helper_path(cache_key: String, path: PathBuf) {
 }
 
 fn sibling_source_path(kind: HelperExecutable) -> Result<PathBuf> {
+    if let Some(path) = cargo_bin_source_path(kind) {
+        return Ok(path);
+    }
+
     let exe = std::env::current_exe().context("resolve current executable for helper lookup")?;
     bundled_executable_path_for_exe(&exe, kind.file_name()).ok_or_else(|| {
         anyhow!(
-            "helper not found next to current executable or under {RESOURCES_DIRNAME}: {}",
+            "helper not found through {} or next to current executable or under {RESOURCES_DIRNAME}: {}",
+            kind.cargo_bin_env_key(),
             exe.display()
         )
     })
+}
+
+fn cargo_bin_source_path(kind: HelperExecutable) -> Option<PathBuf> {
+    let path = PathBuf::from(std::env::var_os(kind.cargo_bin_env_key())?);
+    path.is_file().then_some(path)
 }
 
 pub(crate) fn bundled_executable_path_for_exe(exe: &Path, file_name: &str) -> Option<PathBuf> {
@@ -606,5 +623,17 @@ mod tests {
         let file_name = materialized_file_name(HelperExecutable::Setup, "test-suffix");
 
         assert_eq!(file_name, "codex-windows-sandbox-setup-test-suffix.exe");
+    }
+
+    #[test]
+    fn helper_cargo_bin_env_keys_match_bazel_exported_names() {
+        assert_eq!(
+            HelperExecutable::CommandRunner.cargo_bin_env_key(),
+            "CARGO_BIN_EXE_codex-command-runner"
+        );
+        assert_eq!(
+            HelperExecutable::Setup.cargo_bin_env_key(),
+            "CARGO_BIN_EXE_codex-windows-sandbox-setup"
+        );
     }
 }
