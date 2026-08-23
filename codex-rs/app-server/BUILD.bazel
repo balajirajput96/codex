@@ -24,6 +24,10 @@ codex_rust_crate(
         "app-server-unit-tests": 8,
     },
     test_tags = ["no-sandbox"],
+    test_threads = select({
+        "@platforms//os:macos": 1,
+        "//conditions:default": 0,
+    }),
     # App-server integration tests mutate process-global test configuration.
     # Keep Bazel shard parallelism while serializing threads inside each native
     # Windows test process.
