@@ -29,6 +29,8 @@ use codex_protocol::models::ImageDetail;
 use codex_protocol::models::ResponseItem;
 use codex_protocol::protocol::Event;
 use codex_protocol::protocol::EventMsg;
+use codex_protocol::protocol::HookEventName;
+use codex_protocol::protocol::HookRunStatus;
 use codex_protocol::user_input::MAX_USER_INPUT_TEXT_CHARS;
 use codex_protocol::user_input::UserInput;
 use codex_queue_extension::QueueServiceError;
@@ -762,6 +764,24 @@ async fn explicitly_started_rejected_queue_messages_are_consumed() -> anyhow::Re
     .await?
     .expect("explicitly started input should be submitted");
     assert!(matches!(submission, StartIfIdleSubmission::Started { .. }));
+    let hook_completed = tokio::time::timeout(
+        Duration::from_secs(30),
+        wait_for_event_match(test.codex.as_ref(), |event| match event {
+            EventMsg::HookCompleted(completed)
+                if completed.run.event_name == HookEventName::UserPromptSubmit =>
+            {
+                Some(completed.clone())
+            }
+            _ => None,
+        }),
+    )
+    .await
+    .expect("timed out waiting for UserPromptSubmit hook completion");
+    assert_eq!(
+        HookRunStatus::Blocked,
+        hook_completed.run.status,
+        "queue rejection hook completion: {hook_completed:#?}"
+    );
     wait_for_event_with_timeout(
         test.codex.as_ref(),
         |event| matches!(event, EventMsg::TurnComplete(_)),
