@@ -146,8 +146,7 @@ fn write_rejecting_prompt_hook(home: &Path) {
                 "setlocal\r\n",
                 "set /p \"payload=\"\r\n",
                 ">>\"{log_path}\" echo %payload%\r\n",
-                "set \"without_blocked=%payload:blocked=%\"\r\n",
-                "if not \"%without_blocked%\"==\"%payload%\" echo {{\"decision\":\"block\",\"reason\":\"blocked by queue hook\"}}\r\n",
+                "echo %payload% | findstr /c:\"blocked\" >nul && echo {{\"decision\":\"block\",\"reason\":\"blocked by queue hook\"}}\r\n",
             ),
             log_path = log_path.display(),
         );
@@ -737,12 +736,10 @@ async fn rejected_queue_messages_are_consumed_without_retrying_or_blocking_follo
         })
         .collect::<anyhow::Result<Vec<_>>>()?;
     assert_eq!(vec!["A", "C"], prompts);
-    if !cfg!(windows) {
-        assert_eq!(
-            vec!["A".to_string(), "blocked".to_string(), "C".to_string()],
-            hook_log_prompts(test.codex_home_path())?
-        );
-    }
+    assert_eq!(
+        vec!["A".to_string(), "blocked".to_string(), "C".to_string()],
+        hook_log_prompts(test.codex_home_path())?
+    );
     assert!(queue.list(thread_id).await?.is_empty());
     assert_eq!(2, responses.requests().len());
     Ok(())
@@ -781,12 +778,10 @@ async fn explicitly_started_rejected_queue_messages_are_consumed() -> anyhow::Re
     )
     .await;
     assert!(queue.list(thread_id).await?.is_empty());
-    if !cfg!(windows) {
-        assert_eq!(
-            vec!["blocked".to_string()],
-            hook_log_prompts(test.codex_home_path())?
-        );
-    }
+    assert_eq!(
+        vec!["blocked".to_string()],
+        hook_log_prompts(test.codex_home_path())?
+    );
     assert!(responses.requests().is_empty());
     Ok(())
 }
