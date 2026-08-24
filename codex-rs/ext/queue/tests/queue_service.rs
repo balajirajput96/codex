@@ -137,9 +137,10 @@ fn write_rejecting_prompt_hook(home: &Path) {
     let log_path = home.join("queue_prompt_hook.log");
     let command = if cfg!(windows) {
         // Keep the fixture in the already-running cmd.exe process. Bazel's GNU test
-        // environment can launch cmd.exe but does not reliably start a temporary .cmd helper.
-        // `findstr` consumes the newline-terminated hook record and emits the decision directly.
-        r#"findstr /c:"blocked" >nul && echo {"decision":"block","reason":"blocked by queue hook"}"#
+        // environment does not reliably start temporary helpers or external filter commands.
+        // Delayed expansion evaluates the quote-containing JSON only after cmd parses control
+        // operators, so the built-in comparison can safely detect the blocked prompt.
+        r#"setlocal EnableDelayedExpansion & set /p "payload=" & set "without_blocked=!payload:blocked=!" & if not "!without_blocked!"=="!payload!" echo {"decision":"block","reason":"blocked by queue hook"}"#
             .to_string()
     } else {
         let script_path = home.join("queue_prompt_hook.py");
