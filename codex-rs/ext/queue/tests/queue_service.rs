@@ -136,23 +136,11 @@ fn install_registered_queue(
 fn write_rejecting_prompt_hook(home: &Path) {
     let log_path = home.join("queue_prompt_hook.log");
     let command = if cfg!(windows) {
-        // Command hooks receive one newline-terminated JSON record. Keep this fixture within
-        // cmd.exe so the capability-restricted legacy Windows sandbox does not need to launch a
-        // secondary helper process merely to read and classify the prompt.
-        let script_path = home.join("queue_prompt_hook.cmd");
-        let script = format!(
-            concat!(
-                "@echo off\r\n",
-                "setlocal\r\n",
-                "set /p \"payload=\"\r\n",
-                ">>\"{log_path}\" echo %payload%\r\n",
-                "echo %payload% | findstr /c:\"blocked\" >nul && echo {{\"decision\":\"block\",\"reason\":\"blocked by queue hook\"}}\r\n",
-            ),
-            log_path = log_path.display(),
-        );
-        std::fs::write(&script_path, script)
-            .unwrap_or_else(|error| panic!("write Windows queue hook script: {error}"));
-        format!(r#""{}""#, script_path.display())
+        // Keep the fixture in the already-running cmd.exe process. Bazel's GNU test
+        // environment can launch cmd.exe but does not reliably start a temporary .cmd helper.
+        // `findstr` consumes the newline-terminated hook record and emits the decision directly.
+        r#"findstr /c:"blocked" >nul && echo {"decision":"block","reason":"blocked by queue hook"}"#
+            .to_string()
     } else {
         let script_path = home.join("queue_prompt_hook.py");
         let script = format!(
@@ -736,10 +724,12 @@ async fn rejected_queue_messages_are_consumed_without_retrying_or_blocking_follo
         })
         .collect::<anyhow::Result<Vec<_>>>()?;
     assert_eq!(vec!["A", "C"], prompts);
-    assert_eq!(
-        vec!["A".to_string(), "blocked".to_string(), "C".to_string()],
-        hook_log_prompts(test.codex_home_path())?
-    );
+    if !cfg!(windows) {
+        assert_eq!(
+            vec!["A".to_string(), "blocked".to_string(), "C".to_string()],
+            hook_log_prompts(test.codex_home_path())?
+        );
+    }
     assert!(queue.list(thread_id).await?.is_empty());
     assert_eq!(2, responses.requests().len());
     Ok(())
@@ -778,10 +768,12 @@ async fn explicitly_started_rejected_queue_messages_are_consumed() -> anyhow::Re
     )
     .await;
     assert!(queue.list(thread_id).await?.is_empty());
-    assert_eq!(
-        vec!["blocked".to_string()],
-        hook_log_prompts(test.codex_home_path())?
-    );
+    if !cfg!(windows) {
+        assert_eq!(
+            vec!["blocked".to_string()],
+            hook_log_prompts(test.codex_home_path())?
+        );
+    }
     assert!(responses.requests().is_empty());
     Ok(())
 }
