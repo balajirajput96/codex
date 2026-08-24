@@ -136,6 +136,55 @@ async fn cmd_hook_receives_newline_terminated_json() {
     assert!(result.error.is_none());
 }
 
+#[cfg(windows)]
+#[tokio::test]
+async fn cmd_inline_hook_blocks_matching_prompt_with_exit_code_two() {
+    let temp = tempdir().expect("create temp dir");
+    let source_path = AbsolutePathBuf::try_from(temp.path().join("hooks.json"))
+        .expect("absolute hook configuration path");
+    let command = r#"setlocal EnableDelayedExpansion & set /p payload= & set without_blocked=!payload:blocked=! & if not x!without_blocked!==x!payload! (echo blocked by queue hook 1>&2 & exit /b 2)"#;
+    let env = HashMap::new();
+    let handler = ConfiguredHandler {
+        event_name: HookEventName::UserPromptSubmit,
+        matcher: None,
+        timeout_sec: 10,
+        status_message: None,
+        additional_context_limit: Default::default(),
+        source_path,
+        source: HookSource::User,
+        display_order: 0,
+        kind: ConfiguredHandlerKind::Command {
+            command: command.to_string(),
+            r#async: false,
+            env: env.clone(),
+        },
+    };
+    let (result_sender, _result_receiver) = async_channel::unbounded();
+    let runtime = CommandHookRuntime::new(
+        CommandShell {
+            program: String::new(),
+            args: Vec::new(),
+        },
+        ThreadId::new(),
+        result_sender,
+    );
+
+    let result = run_command(
+        &runtime,
+        &handler,
+        command,
+        &env,
+        r#"{"prompt":"blocked"}"#,
+        temp.path(),
+    )
+    .await;
+
+    assert_eq!(result.exit_code, Some(2), "stderr: {}", result.stderr);
+    assert_eq!(result.stdout.trim(), "");
+    assert_eq!(result.stderr.trim(), "blocked by queue hook");
+    assert!(result.error.is_none());
+}
+
 #[tokio::test]
 async fn fast_exiting_hook_preserves_stdout_when_stdin_is_not_consumed() {
     let temp = tempdir().expect("create temp dir");
