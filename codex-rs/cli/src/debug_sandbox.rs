@@ -470,7 +470,7 @@ async fn run_command_under_sandbox(
 #[cfg(any(target_os = "windows", test))]
 fn debug_windows_sandbox_level(
     configured_level: WindowsSandboxLevel,
-    network_policy: &NetworkSandboxPolicy,
+    network_policy: NetworkSandboxPolicy,
 ) -> WindowsSandboxLevel {
     if configured_level != WindowsSandboxLevel::Elevated && network_policy.is_enabled() {
         // The direct `codex sandbox` command has no managed proxy lifecycle. A network-enabled
@@ -499,7 +499,7 @@ async fn run_command_under_windows_session(
     let empty_paths: &[AbsolutePathBuf] = &[];
     let windows_sandbox_level = debug_windows_sandbox_level(
         WindowsSandboxLevel::from_config(config),
-        &permission_profile.network_sandbox_policy(),
+        permission_profile.network_sandbox_policy(),
     );
     let spawned = spawn_windows_sandbox_session_for_level(WindowsSandboxSessionRequest {
         permission_profile,
@@ -1060,28 +1060,28 @@ enabled = true
         assert_eq!(
             debug_windows_sandbox_level(
                 WindowsSandboxLevel::Disabled,
-                &NetworkSandboxPolicy::Enabled,
+                NetworkSandboxPolicy::Enabled,
             ),
             WindowsSandboxLevel::Elevated
         );
         assert_eq!(
             debug_windows_sandbox_level(
                 WindowsSandboxLevel::RestrictedToken,
-                &NetworkSandboxPolicy::Enabled,
+                NetworkSandboxPolicy::Enabled,
             ),
             WindowsSandboxLevel::Elevated
         );
         assert_eq!(
             debug_windows_sandbox_level(
                 WindowsSandboxLevel::RestrictedToken,
-                &NetworkSandboxPolicy::Restricted,
+                NetworkSandboxPolicy::Restricted,
             ),
             WindowsSandboxLevel::RestrictedToken
         );
         assert_eq!(
             debug_windows_sandbox_level(
                 WindowsSandboxLevel::Elevated,
-                &NetworkSandboxPolicy::Enabled,
+                NetworkSandboxPolicy::Enabled,
             ),
             WindowsSandboxLevel::Elevated
         );
