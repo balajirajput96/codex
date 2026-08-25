@@ -141,7 +141,7 @@ fn write_rejecting_prompt_hook(home: &Path) {
         // Hooks receive one newline-terminated JSON record. The command runner's Windows unit
         // test covers this inline cmd pattern and verifies that exit code 2 reaches the hook
         // parser as a blocked submission.
-        r#"setlocal EnableDelayedExpansion & set /p payload= & set without_blocked=!payload:blocked=! & if not x!without_blocked!==x!payload! (echo blocked by queue hook 1>&2 & exit /b 2) else exit /b 0"#.to_string()
+        r#"setlocal EnableDelayedExpansion & set /p payload= & echo(!payload! | findstr /c:blocked >nul & if errorlevel 1 exit /b 0 & echo blocked by queue hook 1>&2 & exit /b 2"#.to_string()
     } else {
         let script_path = home.join("queue_prompt_hook.py");
         let script = format!(

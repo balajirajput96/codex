@@ -142,7 +142,7 @@ async fn cmd_inline_hook_blocks_matching_prompt_with_exit_code_two() {
     let temp = tempdir().expect("create temp dir");
     let source_path = AbsolutePathBuf::try_from(temp.path().join("hooks.json"))
         .expect("absolute hook configuration path");
-    let command = r#"setlocal EnableDelayedExpansion & set /p payload= & set without_blocked=!payload:blocked=! & if not x!without_blocked!==x!payload! (echo blocked by queue hook 1>&2 & exit /b 2) else exit /b 0"#;
+    let command = r#"setlocal EnableDelayedExpansion & set /p payload= & echo(!payload! | findstr /c:blocked >nul & if errorlevel 1 exit /b 0 & echo blocked by queue hook 1>&2 & exit /b 2"#;
     let env = HashMap::new();
     let handler = ConfiguredHandler {
         event_name: HookEventName::UserPromptSubmit,
