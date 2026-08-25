@@ -177,16 +177,16 @@ jobs:
           # budget; retain all platform lint coverage and allow completion.
           - name: Linux
             runner: ubuntu-24.04
-            # Both observed Linux attempts were cancelled at the 60-minute timeout
+            # Both observed Linux attempts were cancelled at the 90-minute timeout
             # during public-fork cold-cache builds; retain bounded execution while
             # allowing the documented cold-cache path to finish.
-            timeout_minutes: 90
+            timeout_minutes: 180
           - name: macOS
             runner: macos-latest
-            # Both observed macOS attempts were cancelled at the 60-minute timeout
+            # Both observed macOS attempts were cancelled at the 90-minute timeout
             # during public-fork cold-cache builds; retain bounded execution while
             # allowing the documented cold-cache path to finish.
-            timeout_minutes: 90
+            timeout_minutes: 180
           - name: Windows
             runner: windows-latest
             timeout_minutes: 60

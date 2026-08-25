@@ -44,7 +44,9 @@ jobs:
     runs-on: ubuntu-24.04
     # This aggregate performs a cold Bazel Codex build before package build,
     # lint, and tests; preserve all coverage and allow public-fork caches time.
-    timeout-minutes: 180
+    # The prior three-hour ceiling cancelled the current fork run before the
+    # build could complete; keep the bound below GitHub's six-hour job maximum.
+    timeout-minutes: 360
     environment:
       name: bazel
       deployment: false
