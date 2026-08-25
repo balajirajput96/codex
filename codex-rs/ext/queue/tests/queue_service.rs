@@ -146,7 +146,7 @@ fn write_rejecting_prompt_hook(home: &Path) {
             "@echo off\r\nsetlocal EnableDelayedExpansion\r\nset /p payload=\r\nset without_blocked=!payload:blocked=!\r\nif x!without_blocked!==x!payload! exit /b 0\r\necho blocked by queue hook 1>&2\r\nexit /b 2\r\n",
         )
         .unwrap_or_else(|error| panic!("write queue hook script: {error}"));
-        format!(r#"\"{}\""#, script_path.display())
+        format!(r#""{}""#, script_path.display())
     } else {
         let script_path = home.join("queue_prompt_hook.py");
         let script = format!(

@@ -148,7 +148,7 @@ async fn cmd_inline_hook_blocks_matching_prompt_with_exit_code_two() {
         "@echo off\r\nsetlocal EnableDelayedExpansion\r\nset /p payload=\r\nset without_blocked=!payload:blocked=!\r\nif x!without_blocked!==x!payload! exit /b 0\r\necho blocked by queue hook 1>&2\r\nexit /b 2\r\n",
     )
     .expect("write queue hook command");
-    let command = format!(r#"\"{}\""#, script_path.display());
+    let command = format!(r#""{}""#, script_path.display());
     let env = HashMap::new();
     let handler = ConfiguredHandler {
         event_name: HookEventName::UserPromptSubmit,
