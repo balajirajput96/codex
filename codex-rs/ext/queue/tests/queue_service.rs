@@ -6,6 +6,7 @@ use std::sync::Weak;
 use std::time::Duration;
 
 use anyhow::Context;
+use base64::Engine as _;
 use codex_core::NotSubmittedReason;
 use codex_core::StartIfIdleSubmission;
 use codex_core::StartThreadOptions;
@@ -138,12 +139,18 @@ fn install_registered_queue(
 fn write_rejecting_prompt_hook(home: &Path) {
     let log_path = home.join("queue_prompt_hook.log");
     let command = if cfg!(windows) {
-        // Keep the fixture in the already-running cmd.exe process. Bazel's GNU test
-        // environment does not reliably start temporary helpers or external filter commands.
-        // Command hooks treat exit code 2 plus non-empty stderr as a synchronous block, which
-        // avoids emitting quote-heavy JSON from within the runner's outer quoted /C argument.
-        r#"setlocal EnableDelayedExpansion & set /p payload= & set without_blocked=!payload:blocked=! & if not x!without_blocked!==x!payload! (echo blocked by queue hook 1>&2 & exit /b 2)"#
-            .to_string()
+        // Hooks receive an EOF-terminated JSON payload, so cmd's `set /p` cannot consume it.
+        // Run one direct, quote-free encoded PowerShell command that reads the entire stream and
+        // uses the documented exit-code-2/stderr blocking protocol. This avoids temporary helper
+        // paths and the hook runner's outer cmd.exe /C quoting.
+        let script = r#"$payload = [Console]::In.ReadToEnd(); if ($payload -match '"prompt"\s*:\s*"blocked"') { [Console]::Error.Write('blocked by queue hook'); exit 2 }"#;
+        let encoded = base64::engine::general_purpose::STANDARD.encode(
+            script
+                .encode_utf16()
+                .flat_map(u16::to_le_bytes)
+                .collect::<Vec<_>>(),
+        );
+        format!("powershell.exe -NoProfile -NonInteractive -EncodedCommand {encoded}")
     } else {
         let script_path = home.join("queue_prompt_hook.py");
         let script = format!(
