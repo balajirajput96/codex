@@ -9,7 +9,7 @@
 // otherwise depend on which test file compiled the module.
 #![allow(dead_code)]
 
-use std::net::TcpListener;
+use std::net::SocketAddr;
 use std::path::PathBuf;
 use std::process::Stdio;
 use std::sync::Arc;
@@ -303,19 +303,26 @@ pub(crate) async fn arm_initialize_post_json_rpc_failure(
 }
 
 pub(crate) async fn spawn_streamable_http_server() -> anyhow::Result<(Child, String)> {
-    let listener = TcpListener::bind("127.0.0.1:0")?;
-    let port = listener.local_addr()?.port();
-    drop(listener);
-
-    let bind_addr = format!("127.0.0.1:{port}");
-    let base_url = format!("http://{bind_addr}");
+    // Let the child bind port 0 and report the actual port. Reserving a port in
+    // the parent, dropping the listener, and then asking the child to bind that
+    // port creates a TOCTOU race on Windows when several tests start servers at
+    // the same time.
+    let bound_addr_dir = TempDir::new()?;
+    let bound_addr_file = bound_addr_dir.path().join("bound-address");
     let mut child = Command::new(streamable_http_server_bin()?)
         .kill_on_drop(true)
-        .env("MCP_STREAMABLE_HTTP_BIND_ADDR", &bind_addr)
+        .env("MCP_STREAMABLE_HTTP_BIND_ADDR", "127.0.0.1:0")
+        .env("MCP_STREAMABLE_HTTP_BOUND_ADDR_FILE", &bound_addr_file)
         .spawn()?;
 
+    let bind_addr = read_streamable_http_server_bound_address(
+        &mut child,
+        &bound_addr_file,
+        Duration::from_secs(5),
+    )
+    .await?;
     wait_for_streamable_http_server(&mut child, &bind_addr, Duration::from_secs(5)).await?;
-    Ok((child, base_url))
+    Ok((child, format!("http://{bind_addr}")))
 }
 
 /// Owns the exec-server process used by the remote-client integration test.
@@ -382,6 +389,54 @@ async fn read_exec_server_listen_url(child: &mut Child) -> anyhow::Result<String
         if listen_url.starts_with("ws://") {
             return Ok(listen_url.to_string());
         }
+    }
+}
+
+async fn read_streamable_http_server_bound_address(
+    server_child: &mut Child,
+    bound_addr_file: &std::path::Path,
+    timeout: Duration,
+) -> anyhow::Result<String> {
+    let deadline = Instant::now() + timeout;
+
+    loop {
+        if let Some(status) = server_child.try_wait()? {
+            return Err(anyhow::anyhow!(
+                "streamable HTTP server exited early with status {status} before reporting its bound address"
+            ));
+        }
+
+        match tokio::fs::read_to_string(bound_addr_file).await {
+            Ok(contents) => {
+                let bind_addr = contents.trim();
+                if !bind_addr.is_empty() {
+                    bind_addr.parse::<SocketAddr>().with_context(|| {
+                        format!(
+                            "streamable HTTP server reported invalid bound address {bind_addr:?}"
+                        )
+                    })?;
+                    return Ok(bind_addr.to_string());
+                }
+            }
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}
+            Err(error) => {
+                return Err(error).with_context(|| {
+                    format!(
+                        "failed to read streamable HTTP server bound address from {}",
+                        bound_addr_file.display()
+                    )
+                });
+            }
+        }
+
+        let remaining = deadline.saturating_duration_since(Instant::now());
+        if remaining.is_zero() {
+            return Err(anyhow::anyhow!(
+                "timed out waiting for streamable HTTP server bound address file {}",
+                bound_addr_file.display()
+            ));
+        }
+        sleep(Duration::from_millis(50)).await;
     }
 }
 
