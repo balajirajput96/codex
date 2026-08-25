@@ -142,7 +142,13 @@ async fn cmd_inline_hook_blocks_matching_prompt_with_exit_code_two() {
     let temp = tempdir().expect("create temp dir");
     let source_path = AbsolutePathBuf::try_from(temp.path().join("hooks.json"))
         .expect("absolute hook configuration path");
-    let command = r#"setlocal EnableDelayedExpansion & set /p payload= & echo(!payload! | findstr /c:blocked >nul & if errorlevel 1 exit /b 0 & echo blocked by queue hook 1>&2 & exit /b 2"#;
+    let script_path = temp.path().join("queue-hook.cmd");
+    fs::write(
+        &script_path,
+        "@echo off\r\nsetlocal EnableDelayedExpansion\r\nset /p payload=\r\nset without_blocked=!payload:blocked=!\r\nif x!without_blocked!==x!payload! exit /b 0\r\necho blocked by queue hook 1>&2\r\nexit /b 2\r\n",
+    )
+    .expect("write queue hook command");
+    let command = format!(r#"\"{}\""#, script_path.display());
     let env = HashMap::new();
     let handler = ConfiguredHandler {
         event_name: HookEventName::UserPromptSubmit,
@@ -154,7 +160,7 @@ async fn cmd_inline_hook_blocks_matching_prompt_with_exit_code_two() {
         source: HookSource::User,
         display_order: 0,
         kind: ConfiguredHandlerKind::Command {
-            command: command.to_string(),
+            command: command.clone(),
             r#async: false,
             env: env.clone(),
         },
@@ -172,7 +178,7 @@ async fn cmd_inline_hook_blocks_matching_prompt_with_exit_code_two() {
     let result = run_command(
         &runtime,
         &handler,
-        command,
+        &command,
         &env,
         r#"{"prompt":"blocked"}"#,
         temp.path(),
@@ -187,7 +193,7 @@ async fn cmd_inline_hook_blocks_matching_prompt_with_exit_code_two() {
     let allowed = run_command(
         &runtime,
         &handler,
-        command,
+        &command,
         &env,
         r#"{"prompt":"allowed"}"#,
         temp.path(),

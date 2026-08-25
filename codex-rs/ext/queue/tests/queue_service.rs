@@ -138,10 +138,15 @@ fn install_registered_queue(
 fn write_rejecting_prompt_hook(home: &Path) {
     let log_path = home.join("queue_prompt_hook.log");
     let command = if cfg!(windows) {
-        // Hooks receive one newline-terminated JSON record. The command runner's Windows unit
-        // test covers this inline cmd pattern and verifies that exit code 2 reaches the hook
-        // parser as a blocked submission.
-        r#"setlocal EnableDelayedExpansion & set /p payload= & echo(!payload! | findstr /c:blocked >nul & if errorlevel 1 exit /b 0 & echo blocked by queue hook 1>&2 & exit /b 2"#.to_string()
+        // Hooks receive one newline-terminated JSON record. Keep each cmd operation on its own
+        // script line so the default cmd.exe wrapper never has to parse a compound command.
+        let script_path = home.join("queue_prompt_hook.cmd");
+        std::fs::write(
+            &script_path,
+            "@echo off\r\nsetlocal EnableDelayedExpansion\r\nset /p payload=\r\nset without_blocked=!payload:blocked=!\r\nif x!without_blocked!==x!payload! exit /b 0\r\necho blocked by queue hook 1>&2\r\nexit /b 2\r\n",
+        )
+        .unwrap_or_else(|error| panic!("write queue hook script: {error}"));
+        format!(r#"\"{}\""#, script_path.display())
     } else {
         let script_path = home.join("queue_prompt_hook.py");
         let script = format!(
