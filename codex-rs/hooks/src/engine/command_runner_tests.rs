@@ -142,7 +142,7 @@ async fn cmd_inline_hook_blocks_matching_prompt_with_exit_code_two() {
     let temp = tempdir().expect("create temp dir");
     let source_path = AbsolutePathBuf::try_from(temp.path().join("hooks.json"))
         .expect("absolute hook configuration path");
-    let command = r#"setlocal EnableDelayedExpansion & set /p payload= & set without_blocked=!payload:blocked=! & if not x!without_blocked!==x!payload! (echo blocked by queue hook 1>&2 & exit /b 2)"#;
+    let command = r#"setlocal EnableDelayedExpansion & set /p payload= & set without_blocked=!payload:blocked=! & if not x!without_blocked!==x!payload! (echo blocked by queue hook 1>&2 & exit /b 2) else exit /b 0"#;
     let env = HashMap::new();
     let handler = ConfiguredHandler {
         event_name: HookEventName::UserPromptSubmit,
@@ -183,6 +183,20 @@ async fn cmd_inline_hook_blocks_matching_prompt_with_exit_code_two() {
     assert_eq!(result.stdout.trim(), "");
     assert_eq!(result.stderr.trim(), "blocked by queue hook");
     assert!(result.error.is_none());
+
+    let allowed = run_command(
+        &runtime,
+        &handler,
+        command,
+        &env,
+        r#"{"prompt":"allowed"}"#,
+        temp.path(),
+    )
+    .await;
+    assert_eq!(allowed.exit_code, Some(0), "stderr: {}", allowed.stderr);
+    assert_eq!(allowed.stdout.trim(), "");
+    assert_eq!(allowed.stderr.trim(), "");
+    assert!(allowed.error.is_none());
 }
 
 #[tokio::test]
