@@ -706,6 +706,7 @@ async fn rejected_queue_messages_are_consumed_without_retrying_or_blocking_follo
     .await;
     let (installed, extensions) = registered_queue_extensions();
     let test = test_codex()
+        .with_windows_cmd_shell()
         .with_extensions(extensions)
         .with_pre_build_hook(write_rejecting_prompt_hook)
         .with_config(trust_discovered_hooks)
@@ -765,6 +766,7 @@ async fn explicitly_started_rejected_queue_messages_are_consumed() -> anyhow::Re
     let responses =
         responses::mount_sse_once(&server, responses::sse_completed("unexpected-turn")).await;
     let test = test_codex()
+        .with_windows_cmd_shell()
         .with_pre_build_hook(write_rejecting_prompt_hook)
         .with_config(trust_discovered_hooks)
         .with_config(|config| config.include_environment_context = false)
