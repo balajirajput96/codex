@@ -6,7 +6,6 @@ use std::sync::Weak;
 use std::time::Duration;
 
 use anyhow::Context;
-use base64::Engine as _;
 use codex_core::NotSubmittedReason;
 use codex_core::StartIfIdleSubmission;
 use codex_core::StartThreadOptions;
@@ -139,18 +138,10 @@ fn install_registered_queue(
 fn write_rejecting_prompt_hook(home: &Path) {
     let log_path = home.join("queue_prompt_hook.log");
     let command = if cfg!(windows) {
-        // Hooks receive an EOF-terminated JSON payload, so cmd's `set /p` cannot consume it.
-        // Run one direct, quote-free encoded PowerShell command that reads the entire stream and
-        // uses the documented exit-code-2/stderr blocking protocol. This avoids temporary helper
-        // paths and the hook runner's outer cmd.exe /C quoting.
-        let script = r#"$payload = [Console]::In.ReadToEnd(); if ($payload -match '"prompt"\s*:\s*"blocked"') { [Console]::Error.Write('blocked by queue hook'); exit 2 }"#;
-        let encoded = base64::engine::general_purpose::STANDARD.encode(
-            script
-                .encode_utf16()
-                .flat_map(u16::to_le_bytes)
-                .collect::<Vec<_>>(),
-        );
-        format!("powershell.exe -NoProfile -NonInteractive -EncodedCommand {encoded}")
+        // Hooks receive one newline-terminated JSON record. The command runner's Windows unit
+        // test covers this inline cmd pattern and verifies that exit code 2 reaches the hook
+        // parser as a blocked submission.
+        r#"setlocal EnableDelayedExpansion & set /p payload= & set without_blocked=!payload:blocked=! & if not x!without_blocked!==x!payload! (echo blocked by queue hook 1>&2 & exit /b 2)"#.to_string()
     } else {
         let script_path = home.join("queue_prompt_hook.py");
         let script = format!(
@@ -692,6 +683,7 @@ async fn rejected_queue_messages_are_consumed_without_retrying_or_blocking_follo
     .await;
     let (installed, extensions) = registered_queue_extensions();
     let test = test_codex()
+        .with_windows_cmd_shell()
         .with_extensions(extensions)
         .with_pre_build_hook(write_rejecting_prompt_hook)
         .with_config(trust_discovered_hooks)
@@ -751,6 +743,7 @@ async fn explicitly_started_rejected_queue_messages_are_consumed() -> anyhow::Re
     let responses =
         responses::mount_sse_once(&server, responses::sse_completed("unexpected-turn")).await;
     let test = test_codex()
+        .with_windows_cmd_shell()
         .with_pre_build_hook(write_rejecting_prompt_hook)
         .with_config(trust_discovered_hooks)
         .with_config(|config| config.include_environment_context = false)

@@ -3959,7 +3959,6 @@ name = "codex-queue-extension"
 version = "0.0.0"
 dependencies = [
  "anyhow",
- "base64 0.22.1",
  "codex-core",
  "codex-extension-api",
  "codex-protocol",
