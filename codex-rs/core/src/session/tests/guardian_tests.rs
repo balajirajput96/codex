@@ -413,8 +413,24 @@ async fn guardian_allows_shell_command_additional_permissions_requests_past_poli
     assert!(output.contains("hi"));
 }
 
-#[tokio::test]
-async fn strict_auto_review_turn_grant_forces_guardian_for_shell_command_policy_skip() {
+#[test]
+fn strict_auto_review_turn_grant_forces_guardian_for_shell_command_policy_skip() {
+    std::thread::Builder::new()
+        .name("strict-auto-review-guardian".to_string())
+        .stack_size(64 * 1024 * 1024)
+        .spawn(|| {
+            tokio::runtime::Builder::new_current_thread()
+                .enable_all()
+                .build()
+                .expect("build guardian test runtime")
+                .block_on(strict_auto_review_turn_grant_forces_guardian_for_shell_command_policy_skip_inner());
+        })
+        .expect("spawn guardian test thread")
+        .join()
+        .expect("guardian test thread should not panic");
+}
+
+async fn strict_auto_review_turn_grant_forces_guardian_for_shell_command_policy_skip_inner() {
     let server = start_mock_server().await;
     let guardian_request_log = mount_sse_once(
         &server,
