@@ -73,6 +73,14 @@ jobs:
 
       - uses: ./.github/actions/setup-ci
 
+      - name: Reserve Linux nextest disk headroom
+        if: runner.os == 'Linux'
+        shell: bash
+        run: |
+          # Cold archive builds retain Cargo outputs and a compressed archive alongside
+          # local sccache data. Set this before sccache starts so it retains disk headroom.
+          echo "SCCACHE_CACHE_SIZE=4G" >> "$GITHUB_ENV"
+
       - name: Install Linux build dependencies
         if: ${{ runner.os == 'Linux' }}
         shell: bash
@@ -80,7 +88,7 @@ jobs:
           set -euo pipefail
           if command -v apt-get >/dev/null 2>&1; then
             sudo apt-get update -y
-            sudo DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends pkg-config libcap-dev bubblewrap
+            sudo DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends pkg-config libcap-dev bubblewrap apparmor-profiles apparmor-utils
           fi
 
       - uses: dtolnay/rust-toolchain@e081816240890017053eacbb1bdf337761dc5582 # 1.95.0
@@ -174,13 +182,15 @@ jobs:
         with:
           tool: nextest@0.9.103
 
-      - name: Enable unprivileged user namespaces (Linux)
+      - name: Enable the scoped Bubblewrap AppArmor profile (Linux)
         if: runner.os == 'Linux'
+        shell: bash
         run: |
-          sudo sysctl -w kernel.unprivileged_userns_clone=1
-          if sudo sysctl -a 2>/dev/null | grep -q '^kernel.apparmor_restrict_unprivileged_userns'; then
-            sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0
-          fi
+          set -euo pipefail
+          profile=/usr/share/apparmor/extra-profiles/bwrap-userns-restrict
+          sudo install -D -m 0644 "$profile" /etc/apparmor.d/bwrap-userns-restrict
+          sudo apparmor_parser --replace /etc/apparmor.d/bwrap-userns-restrict
+          /usr/bin/bwrap --unshare-user --unshare-net --ro-bind / / -- /bin/true
 
       - name: Build nextest archive
         shell: bash
@@ -311,7 +321,7 @@ jobs:
           set -euo pipefail
           if command -v apt-get >/dev/null 2>&1; then
             sudo apt-get update -y
-            sudo DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends pkg-config libcap-dev bubblewrap
+            sudo DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends pkg-config libcap-dev bubblewrap apparmor-profiles apparmor-utils
           fi
 
       - uses: dtolnay/rust-toolchain@e081816240890017053eacbb1bdf337761dc5582 # 1.95.0
@@ -322,13 +332,15 @@ jobs:
         with:
           tool: nextest@0.9.103
 
-      - name: Enable unprivileged user namespaces (Linux)
+      - name: Enable the scoped Bubblewrap AppArmor profile (Linux)
         if: runner.os == 'Linux'
+        shell: bash
         run: |
-          sudo sysctl -w kernel.unprivileged_userns_clone=1
-          if sudo sysctl -a 2>/dev/null | grep -q '^kernel.apparmor_restrict_unprivileged_userns'; then
-            sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0
-          fi
+          set -euo pipefail
+          profile=/usr/share/apparmor/extra-profiles/bwrap-userns-restrict
+          sudo install -D -m 0644 "$profile" /etc/apparmor.d/bwrap-userns-restrict
+          sudo apparmor_parser --replace /etc/apparmor.d/bwrap-userns-restrict
+          /usr/bin/bwrap --unshare-user --unshare-net --ro-bind / / -- /bin/true
 
       - name: Set up remote test env (Docker)
         if: ${{ runner.os == 'Linux' && inputs.remote_env }}
