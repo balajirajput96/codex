@@ -196,15 +196,32 @@ async fn run_cmd_result_with_permission_profile_for_cwd(
     .await
 }
 
+fn bwrap_prerequisites_unavailable(stderr: &str) -> bool {
+    stderr.contains(BWRAP_UNAVAILABLE_ERR)
+        || (stderr.contains("Can't mount proc on /newroot/proc")
+            && (stderr.contains("Operation not permitted")
+                || stderr.contains("Permission denied")
+                || stderr.contains("Invalid argument")))
+        // GitHub-hosted runners can deny the user-namespace setup or loopback
+        // configuration that Bubblewrap needs. These are runner prerequisites,
+        // not sandbox behavior that this suite can meaningfully assert.
+        || stderr.contains("bwrap: setting up uid map: Permission denied")
+        || stderr.contains("bwrap: loopback: Failed RTM_NEWADDR: Operation not permitted")
+}
+
 fn is_bwrap_unavailable_output(output: &codex_protocol::exec_output::ExecToolCallOutput) -> bool {
-    output.stderr.text.contains(BWRAP_UNAVAILABLE_ERR)
-        || (output
-            .stderr
-            .text
-            .contains("Can't mount proc on /newroot/proc")
-            && (output.stderr.text.contains("Operation not permitted")
-                || output.stderr.text.contains("Permission denied")
-                || output.stderr.text.contains("Invalid argument")))
+    bwrap_prerequisites_unavailable(&output.stderr.text)
+}
+
+#[test]
+fn detects_hosted_runner_bwrap_prerequisite_denials() {
+    assert!(bwrap_prerequisites_unavailable(
+        "bwrap: setting up uid map: Permission denied\n"
+    ));
+    assert!(bwrap_prerequisites_unavailable(
+        "bwrap: loopback: Failed RTM_NEWADDR: Operation not permitted\n"
+    ));
+    assert!(!bwrap_prerequisites_unavailable("command failed for another reason"));
 }
 
 async fn should_skip_bwrap_tests() -> bool {
@@ -250,6 +267,11 @@ fn expect_denied(
 
 #[tokio::test]
 async fn test_root_read() {
+    if should_skip_bwrap_tests().await {
+        eprintln!("skipping bwrap test: bwrap sandbox prerequisites are unavailable");
+        return;
+    }
+
     run_cmd(&["ls", "-l", "/bin"], &[], SHORT_TIMEOUT_MS).await;
 }
 
@@ -356,6 +378,11 @@ async fn bwrap_preserves_writable_dev_shm_bind_mount() {
 
 #[tokio::test]
 async fn test_writable_root() {
+    if should_skip_bwrap_tests().await {
+        eprintln!("skipping bwrap test: bwrap sandbox prerequisites are unavailable");
+        return;
+    }
+
     let tmpdir = tempfile::tempdir().unwrap();
     let file_path = tmpdir.path().join("test");
     run_cmd(
@@ -400,6 +427,11 @@ async fn sandbox_ignores_missing_writable_roots_under_bwrap() {
 
 #[tokio::test]
 async fn test_no_new_privs_is_enabled() {
+    if should_skip_bwrap_tests().await {
+        eprintln!("skipping bwrap test: bwrap sandbox prerequisites are unavailable");
+        return;
+    }
+
     let output = run_cmd_output(
         &["bash", "-lc", "grep '^NoNewPrivs:' /proc/self/status"],
         &[],
