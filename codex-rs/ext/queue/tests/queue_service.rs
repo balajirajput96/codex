@@ -138,12 +138,15 @@ fn install_registered_queue(
 fn write_rejecting_prompt_hook(home: &Path) {
     let log_path = home.join("queue_prompt_hook.log");
     let command = if cfg!(windows) {
-        // Keep the fixture in the already-running cmd.exe process. Bazel's GNU test
-        // environment does not reliably start temporary helpers or external filter commands.
-        // Emit the supported structured blocking response with exit code 0. In the hosted
-        // Windows GNU runner, the previous nested `exit /b 2` form was observed as exit code 1.
-        r#"setlocal EnableDelayedExpansion & set /p payload= & set without_blocked=!payload:blocked=! & if not x!without_blocked!==x!payload! echo {^"decision^":^"block^",^"reason^":^"blocked by queue hook^"}"#
-            .to_string()
+        // Hooks receive one newline-terminated JSON record. Keep each cmd operation on its own
+        // script line so the default cmd.exe wrapper never has to parse a compound command.
+        let script_path = home.join("queue_prompt_hook.cmd");
+        std::fs::write(
+            &script_path,
+            "@echo off\r\nsetlocal EnableDelayedExpansion\r\nset /p payload=\r\nset without_blocked=!payload:blocked=!\r\nif x!without_blocked!==x!payload! exit /b 0\r\necho blocked by queue hook 1>&2\r\nexit /b 2\r\n",
+        )
+        .unwrap_or_else(|error| panic!("write queue hook script: {error}"));
+        format!(r#""{}""#, script_path.display())
     } else {
         let script_path = home.join("queue_prompt_hook.py");
         let script = format!(
@@ -685,6 +688,7 @@ async fn rejected_queue_messages_are_consumed_without_retrying_or_blocking_follo
     .await;
     let (installed, extensions) = registered_queue_extensions();
     let test = test_codex()
+        .with_windows_cmd_shell()
         .with_extensions(extensions)
         .with_pre_build_hook(write_rejecting_prompt_hook)
         .with_config(trust_discovered_hooks)
@@ -744,6 +748,7 @@ async fn explicitly_started_rejected_queue_messages_are_consumed() -> anyhow::Re
     let responses =
         responses::mount_sse_once(&server, responses::sse_completed("unexpected-turn")).await;
     let test = test_codex()
+        .with_windows_cmd_shell()
         .with_pre_build_hook(write_rejecting_prompt_hook)
         .with_config(trust_discovered_hooks)
         .with_config(|config| config.include_environment_context = false)
