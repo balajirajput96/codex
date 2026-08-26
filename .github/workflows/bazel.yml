@@ -64,6 +64,18 @@ jobs:
         with:
           persist-credentials: false
 
+      # Ubuntu 24.04's AppArmor policy grants the distro helper the namespace
+      # transition required by the Linux sandbox. The launcher already prefers
+      # an eligible system bwrap, so provision it rather than weakening AppArmor
+      # or falling back to the relocated bundled helper.
+      - name: Install system Bubblewrap for Linux sandbox tests
+        if: matrix.os == 'ubuntu-24.04'
+        shell: bash
+        run: |
+          sudo DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends bubblewrap
+          test -x /usr/bin/bwrap
+          /usr/bin/bwrap --help | grep -q -- '--perms'
+
       - name: Prepare Bazel CI
         id: prepare_bazel
         uses: ./.github/actions/prepare-bazel-ci
