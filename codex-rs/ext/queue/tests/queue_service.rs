@@ -140,9 +140,9 @@ fn write_rejecting_prompt_hook(home: &Path) {
     let command = if cfg!(windows) {
         // Keep the fixture in the already-running cmd.exe process. Bazel's GNU test
         // environment does not reliably start temporary helpers or external filter commands.
-        // Command hooks treat exit code 2 plus non-empty stderr as a synchronous block, which
-        // avoids emitting quote-heavy JSON from within the runner's outer quoted /C argument.
-        r#"setlocal EnableDelayedExpansion & set /p payload= & set without_blocked=!payload:blocked=! & if not x!without_blocked!==x!payload! (echo blocked by queue hook 1>&2 & exit /b 2)"#
+        // Emit the supported structured blocking response with exit code 0. In the hosted
+        // Windows GNU runner, the previous nested `exit /b 2` form was observed as exit code 1.
+        r#"setlocal EnableDelayedExpansion & set /p payload= & set without_blocked=!payload:blocked=! & if not x!without_blocked!==x!payload! echo {^"decision^":^"block^",^"reason^":^"blocked by queue hook^"}"#
             .to_string()
     } else {
         let script_path = home.join("queue_prompt_hook.py");
