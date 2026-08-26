@@ -221,7 +221,9 @@ fn detects_hosted_runner_bwrap_prerequisite_denials() {
     assert!(bwrap_prerequisites_unavailable(
         "bwrap: loopback: Failed RTM_NEWADDR: Operation not permitted\n"
     ));
-    assert!(!bwrap_prerequisites_unavailable("command failed for another reason"));
+    assert!(!bwrap_prerequisites_unavailable(
+        "command failed for another reason"
+    ));
 }
 
 async fn should_skip_bwrap_tests() -> bool {
