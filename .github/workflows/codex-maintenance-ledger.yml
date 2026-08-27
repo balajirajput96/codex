@@ -1,0 +1,45 @@
+name: Codex maintenance ledger
+
+on:
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: "Collect and report GitHub metadata without writing state"
+        required: false
+        default: true
+        type: boolean
+  schedule:
+    # GitHub documents higher scheduler load at the start of each hour.
+    - cron: "17 * * * *"
+
+permissions:
+  actions: read
+  contents: write
+  pull-requests: read
+
+concurrency:
+  group: codex-maintenance-ledger
+  cancel-in-progress: false
+
+jobs:
+  record-maintenance-observation:
+    # Scheduled workflows are read from the default branch. Keep this automation
+    # scoped to the authorized fork when manually dispatched from a feature branch.
+    if: github.repository == 'balajirajput96/codex'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false
+      - name: Record maintenance observation
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [[ "${{ inputs.dry_run }}" == "true" ]]; then
+            python3 .github/scripts/codex_maintenance.py --dry-run
+          else
+            python3 .github/scripts/codex_maintenance.py
+          fi
+        env:
+          GH_TOKEN: ${{ github.token }}
