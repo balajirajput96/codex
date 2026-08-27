@@ -1,0 +1,48 @@
+{
+  "active_workflow_run_ids": [
+    33033571279,
+    32996662084,
+    32996658882,
+    32996245898,
+    32996245694,
+    32987720335,
+    32987187782,
+    32986343877,
+    32972135856
+  ],
+  "cancelled_workflow_run_ids": [
+    33033435366,
+    32986553589,
+    32982727396,
+    32982456866,
+    32982456541,
+    32971858481,
+    32971857923,
+    32971790975,
+    32971790673,
+    32971677859,
+    32971677384,
+    32963021925,
+    32961539874,
+    32942079236,
+    32928914512,
+    32928254444,
+    32908457470
+  ],
+  "cycle": 2,
+  "main_head_sha": "a2fc6af7c6f5aeaad8d3b8ef10cf16666bd70301",
+  "new_failure_run_ids": [],
+  "next_recommended_action": "Wait for active workflows; do not cancel, rerun, merge, or modify source automatically.",
+  "open_draft_pull_requests": [
+    68,
+    67,
+    66,
+    65,
+    59
+  ],
+  "open_pull_request_count": 7,
+  "result": "monitoring",
+  "timestamp": "2026-08-27T03:03:43Z",
+  "workflow_run_id": "manual-ledger-migration-20260827",
+  "workflow_window_limited_to": 100
+}
