@@ -94,6 +94,22 @@ fn sandbox_log(codex_home: &Path) -> String {
         .unwrap_or_else(|err| format!("failed to read {}: {err}", log_path.display()))
 }
 
+fn dacl_diagnostic(path: &Path) -> String {
+    let output = std::process::Command::new("icacls")
+        .arg(path)
+        .output()
+        .map(|output| {
+            format!(
+                "status={:?} stdout={:?} stderr={:?}",
+                output.status,
+                String::from_utf8_lossy(&output.stdout),
+                String::from_utf8_lossy(&output.stderr)
+            )
+        })
+        .unwrap_or_else(|err| format!("failed to run icacls: {err}"));
+    format!("{}: {output}", path.display())
+}
+
 fn workspace_roots_for(root: &Path) -> Vec<AbsolutePathBuf> {
     vec![AbsolutePathBuf::from_absolute_path(root).expect("absolute workspace root")]
 }
@@ -696,6 +712,8 @@ fn legacy_workspace_write_delete_is_limited_to_writable_roots() {
         }
         let protected_git_dir = workspace.join(".git");
         fs::create_dir(&protected_git_dir).expect("create protected .git directory");
+        let diagnostic_ready = workspace.join("legacy-delete-diagnostic-ready.txt");
+        let diagnostic_continue = workspace.join("legacy-delete-diagnostic-continue.txt");
 
         let workspace_file = workspace.join("workspace-delete.txt");
         let temp_file = temp_root.join("temp-delete.txt");
@@ -711,6 +729,9 @@ fn legacy_workspace_write_delete_is_limited_to_writable_roots() {
             &script,
             concat!(
                 "@echo off\r\n",
+                "echo ready > \"%DIAGNOSTIC_READY%\"\r\n",
+                ":wait_for_diagnostic_host\r\n",
+                "if not exist \"%DIAGNOSTIC_CONTINUE%\" goto wait_for_diagnostic_host\r\n",
                 "del /f /q \"%WORKSPACE_DELETE%\"\r\n",
                 "del /f /q \"%TEMP_DELETE%\"\r\n",
                 "del /f /q \"%TMP_DELETE%\"\r\n",
@@ -744,6 +765,15 @@ fn legacy_workspace_write_delete_is_limited_to_writable_roots() {
                 "PROTECTED_GIT_DIR".to_string(),
                 protected_git_dir.to_string_lossy().into_owned(),
             ),
+            ("LEGACY_TOKEN_DIAGNOSTICS".to_string(), "1".to_string()),
+            (
+                "DIAGNOSTIC_READY".to_string(),
+                diagnostic_ready.to_string_lossy().into_owned(),
+            ),
+            (
+                "DIAGNOSTIC_CONTINUE".to_string(),
+                diagnostic_continue.to_string_lossy().into_owned(),
+            ),
         ]);
 
         let permission_profile = PermissionProfile::workspace_write();
@@ -768,6 +798,23 @@ fn legacy_workspace_write_delete_is_limited_to_writable_roots() {
         )
         .await
         .expect("spawn legacy delete session");
+
+        // This is diagnostics only. The test's destructive-operation assertion below remains
+        // unchanged, but the native failure log now captures the actual child token's group
+        // report and the effective DACLs after production setup has completed and before deletion.
+        let diagnostic_ready = wait_for_path(&diagnostic_ready, Duration::from_secs(5));
+        eprintln!("LEGACY_DELETE_BOUNDARY_DIAGNOSTIC ready={diagnostic_ready}");
+        for path in [
+            workspace.as_path(),
+            temp_root.as_path(),
+            tmp_root.as_path(),
+            outside_root.as_path(),
+            protected_git_dir.as_path(),
+        ] {
+            eprintln!("LEGACY_DELETE_BOUNDARY_DACL {}", dacl_diagnostic(path));
+        }
+        fs::write(&diagnostic_continue, "continue").expect("release legacy delete diagnostics");
+
         let (stdout, exit_code) =
             collect_stdout_and_exit(spawned, codex_home.path(), Duration::from_secs(/*secs*/ 10))
                 .await;
