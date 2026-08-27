@@ -37,6 +37,10 @@ use windows_sys::Win32::Foundation::CloseHandle;
 use windows_sys::Win32::Foundation::GetLastError;
 use windows_sys::Win32::Foundation::HANDLE;
 use windows_sys::Win32::Foundation::INVALID_HANDLE_VALUE;
+#[cfg(test)]
+use windows_sys::Win32::Security::GetTokenInformation;
+#[cfg(test)]
+use windows_sys::Win32::Security::TokenRestrictedSids;
 use windows_sys::Win32::Storage::FileSystem::WriteFile;
 use windows_sys::Win32::System::Console::COORD;
 use windows_sys::Win32::System::Console::ResizePseudoConsole;
@@ -47,6 +51,55 @@ use windows_sys::Win32::System::Threading::TerminateProcess;
 use windows_sys::Win32::System::Threading::WaitForSingleObject;
 
 const WAIT_TIMEOUT: u32 = 0x0000_0102;
+
+#[cfg(test)]
+fn log_legacy_restricted_token_diagnostic(h_token: HANDLE, logs_base_dir: Option<&Path>) {
+    if std::env::var_os("LEGACY_TOKEN_DIAGNOSTICS").is_none() {
+        return;
+    }
+
+    let mut bytes_required = 0_u32;
+    unsafe {
+        GetTokenInformation(
+            h_token,
+            TokenRestrictedSids,
+            ptr::null_mut(),
+            0,
+            &mut bytes_required,
+        );
+    }
+    if bytes_required < std::mem::size_of::<u32>() as u32 {
+        log_note(
+            "LEGACY_DELETE_BOUNDARY_TOKEN restricting_sid_count=unavailable",
+            logs_base_dir,
+        );
+        return;
+    }
+
+    let mut buffer = vec![0_u8; bytes_required as usize];
+    let query_succeeded = unsafe {
+        GetTokenInformation(
+            h_token,
+            TokenRestrictedSids,
+            buffer.as_mut_ptr().cast(),
+            bytes_required,
+            &mut bytes_required,
+        ) != 0
+    };
+    if !query_succeeded {
+        log_note(
+            "LEGACY_DELETE_BOUNDARY_TOKEN restricting_sid_count=query_failed",
+            logs_base_dir,
+        );
+        return;
+    }
+
+    let restricting_sid_count = unsafe { std::ptr::read_unaligned(buffer.as_ptr().cast::<u32>()) };
+    log_note(
+        &format!("LEGACY_DELETE_BOUNDARY_TOKEN restricting_sid_count={restricting_sid_count}"),
+        logs_base_dir,
+    );
+}
 
 struct LegacyProcessHandles {
     process: PROCESS_INFORMATION,
@@ -369,6 +422,9 @@ pub(crate) async fn spawn_windows_sandbox_session_legacy(
             write_root_sids: &security.write_root_sids,
         },
     )?;
+
+    #[cfg(test)]
+    log_legacy_restricted_token_diagnostic(security.h_token, common.logs_base_dir.as_deref());
 
     let (writer_tx, writer_rx) = mpsc::channel::<Vec<u8>>(128);
     let (stdout_tx, stdout_rx) = broadcast::channel::<Vec<u8>>(256);
