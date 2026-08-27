@@ -1,0 +1,112 @@
+{
+  "completed_cycles": 1,
+  "created_at": "2026-08-27T02:43:58Z",
+  "history": [
+    {
+      "active_workflow_run_ids": [
+        33033571279,
+        32996662084,
+        32996658882,
+        32996245898,
+        32996245694,
+        32987720335,
+        32987187782,
+        32986343877,
+        32972135856
+      ],
+      "cancelled_workflow_run_ids": [
+        33033435366,
+        32986553589,
+        32982727396,
+        32982456866,
+        32982456541,
+        32971858481,
+        32971857923,
+        32971790975,
+        32971790673,
+        32971677859,
+        32971677384,
+        32963021925,
+        32961539874,
+        32942079236,
+        32928914512,
+        32928254444,
+        32908457470
+      ],
+      "cycle": 1,
+      "main_head_sha": "a2fc6af7c6f5aeaad8d3b8ef10cf16666bd70301",
+      "new_failure_run_ids": [
+        32996009689,
+        32995998534,
+        32995616746,
+        32982448457,
+        32977730345,
+        32972135511,
+        32928912655
+      ],
+      "next_recommended_action": "Inspect new failed workflow metadata and collect logs only through a supervised repair task.",
+      "open_draft_pull_requests": [
+        68,
+        67,
+        66,
+        65,
+        59
+      ],
+      "open_pull_request_count": 7,
+      "result": "review_required",
+      "timestamp": "2026-08-27T02:44:01Z",
+      "workflow_run_id": "manual-bootstrap-20260827",
+      "workflow_window_limited_to": 100
+    }
+  ],
+  "known_failure_runs": {
+    "32928912655": {
+      "conclusion": "failure",
+      "first_observed_at": "2026-08-27T02:44:01Z",
+      "head_sha": "2333226dc201e319fbb8b4ffd57708d571529e63",
+      "url": "https://github.com/balajirajput96/codex/actions/runs/32928912655"
+    },
+    "32972135511": {
+      "conclusion": "failure",
+      "first_observed_at": "2026-08-27T02:44:01Z",
+      "head_sha": "eb20abe48343c55d7a0344f4dd1957b2e1643d57",
+      "url": "https://github.com/balajirajput96/codex/actions/runs/32972135511"
+    },
+    "32977730345": {
+      "conclusion": "failure",
+      "first_observed_at": "2026-08-27T02:44:01Z",
+      "head_sha": "a80f2512af9edccaf0f4d5f6bbfedeefaf4b65f3",
+      "url": "https://github.com/balajirajput96/codex/actions/runs/32977730345"
+    },
+    "32982448457": {
+      "conclusion": "failure",
+      "first_observed_at": "2026-08-27T02:44:01Z",
+      "head_sha": "ab9cb1a350f8c29d866949bd0beb42d74ed8d5fe",
+      "url": "https://github.com/balajirajput96/codex/actions/runs/32982448457"
+    },
+    "32995616746": {
+      "conclusion": "failure",
+      "first_observed_at": "2026-08-27T02:44:01Z",
+      "head_sha": "98af82bc55258a4da78c53c1f619a757db077bc7",
+      "url": "https://github.com/balajirajput96/codex/actions/runs/32995616746"
+    },
+    "32995998534": {
+      "conclusion": "failure",
+      "first_observed_at": "2026-08-27T02:44:01Z",
+      "head_sha": "6c485545c3c4cfaebe27501f5bd286a54de62580",
+      "url": "https://github.com/balajirajput96/codex/actions/runs/32995998534"
+    },
+    "32996009689": {
+      "conclusion": "failure",
+      "first_observed_at": "2026-08-27T02:44:01Z",
+      "head_sha": "6c485545c3c4cfaebe27501f5bd286a54de62580",
+      "url": "https://github.com/balajirajput96/codex/actions/runs/32996009689"
+    }
+  },
+  "last_result": "review_required",
+  "max_cycles": 2400,
+  "next_recommended_action": "Inspect new failed workflow metadata and collect logs only through a supervised repair task.",
+  "repository": "balajirajput96/codex",
+  "schema_version": 1,
+  "updated_at": "2026-08-27T02:44:01Z"
+}
