@@ -116,6 +116,6 @@ Neither gate can be skipped. To reproduce the focused integration locally:
 
 ```bash
 CODEX_EXEC_PATH=/absolute/path/to/codex \
-  pnpm --filter @openai/codex-sdk test -- \
+  pnpm --filter @openai/codex-sdk test \
   --runInBand tests/mcpConformance.test.ts
 ```
