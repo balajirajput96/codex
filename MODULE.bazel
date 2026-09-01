@@ -366,6 +366,17 @@ crate.annotation(
         "x86_64-pc-windows-gnullvm": ["pure"],
     },
 )
+
+# The foreign Windows toolchain can omit proc-macro edges from generated crate
+# targets; keep these explicit so cross-target Bazel builds pass consistently.
+crate.annotation(
+    crate = "arc-swap",
+    deps = ["@crates//:rustversion-1.0.22"],
+)
+crate.annotation(
+    crate = "prost",
+    deps = ["@crates//:prost-derive-0.14.3"],
+)
 crate.annotation(
     crate = "zstd-sys",
     gen_build_script = "on",
