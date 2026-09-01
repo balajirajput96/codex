@@ -37,9 +37,7 @@ use windows_sys::Win32::Foundation::CloseHandle;
 use windows_sys::Win32::Foundation::GetLastError;
 use windows_sys::Win32::Foundation::HANDLE;
 use windows_sys::Win32::Foundation::INVALID_HANDLE_VALUE;
-#[cfg(test)]
 use windows_sys::Win32::Security::GetTokenInformation;
-#[cfg(test)]
 use windows_sys::Win32::Security::TokenRestrictedSids;
 use windows_sys::Win32::Storage::FileSystem::WriteFile;
 use windows_sys::Win32::System::Console::COORD;
@@ -52,7 +50,6 @@ use windows_sys::Win32::System::Threading::WaitForSingleObject;
 
 const WAIT_TIMEOUT: u32 = 0x0000_0102;
 
-#[cfg(test)]
 fn log_legacy_restricted_token_diagnostic(h_token: HANDLE, logs_base_dir: Option<&Path>) {
     if std::env::var_os("LEGACY_TOKEN_DIAGNOSTICS").is_none() {
         return;
@@ -423,7 +420,6 @@ pub(crate) async fn spawn_windows_sandbox_session_legacy(
         },
     )?;
 
-    #[cfg(test)]
     log_legacy_restricted_token_diagnostic(security.h_token, common.logs_base_dir.as_deref());
 
     let (writer_tx, writer_rx) = mpsc::channel::<Vec<u8>>(128);
