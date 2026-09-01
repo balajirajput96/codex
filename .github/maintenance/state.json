@@ -1,5 +1,5 @@
 {
-  "completed_cycles": 25,
+  "completed_cycles": 26,
   "created_at": "2026-08-27T02:43:58Z",
   "known_failure_runs": {
     "32928912655": {
@@ -64,103 +64,47 @@
     },
     "33073964229": {
       "conclusion": "failure",
-      "first_observed_at": "2026-09-01T18:31:27Z",
+      "first_observed_at": "2026-09-01T21:47:09Z",
       "head_sha": "1fb4799c4e7da3ff86f212a29e5fd854d70f2167",
       "url": "https://github.com/balajirajput96/codex/actions/runs/33073964229"
     },
     "33074120077": {
       "conclusion": "failure",
-      "first_observed_at": "2026-09-01T18:31:27Z",
+      "first_observed_at": "2026-09-01T21:47:09Z",
       "head_sha": "6a9689eb4c238984fa67ee4dfb5737e4d12fadba",
       "url": "https://github.com/balajirajput96/codex/actions/runs/33074120077"
     },
     "33074294362": {
       "conclusion": "failure",
-      "first_observed_at": "2026-09-01T18:31:27Z",
+      "first_observed_at": "2026-09-01T21:47:09Z",
       "head_sha": "b5051df73131c381c711215cb8b208ec8db5f102",
       "url": "https://github.com/balajirajput96/codex/actions/runs/33074294362"
     },
     "33141601360": {
       "conclusion": "failure",
-      "first_observed_at": "2026-09-01T18:31:27Z",
+      "first_observed_at": "2026-09-01T21:47:09Z",
       "head_sha": "521b0624319e76aab332986dc81e6ebeaf19c94a",
       "url": "https://github.com/balajirajput96/codex/actions/runs/33141601360"
     },
     "33141601504": {
       "conclusion": "failure",
-      "first_observed_at": "2026-09-01T18:31:27Z",
+      "first_observed_at": "2026-09-01T21:47:09Z",
       "head_sha": "521b0624319e76aab332986dc81e6ebeaf19c94a",
       "url": "https://github.com/balajirajput96/codex/actions/runs/33141601504"
     },
     "33157222936": {
       "conclusion": "failure",
-      "first_observed_at": "2026-09-01T18:31:27Z",
+      "first_observed_at": "2026-09-01T21:47:09Z",
       "head_sha": "78dd046544180d595c22a44fc0983f99dd3a8e61",
       "url": "https://github.com/balajirajput96/codex/actions/runs/33157222936"
     }
   },
   "last_result": "monitoring",
-  "latest_cycle_path": ".github/maintenance/cycles/0025.json",
+  "latest_cycle_path": ".github/maintenance/cycles/0026.json",
   "legacy_history_entries": 1,
   "max_cycles": 2400,
   "next_recommended_action": "Wait for active workflows; do not cancel, rerun, merge, or modify source automatically.",
   "recent_history": [
-    {
-      "active_workflow_run_ids": [
-        33033571279,
-        32996662084,
-        32996658882,
-        32996245898,
-        32996245694,
-        32987720335,
-        32987187782,
-        32986343877,
-        32972135856
-      ],
-      "cancelled_workflow_run_ids": [
-        33033435366,
-        32986553589,
-        32982727396,
-        32982456866,
-        32982456541,
-        32971858481,
-        32971857923,
-        32971790975,
-        32971790673,
-        32971677859,
-        32971677384,
-        32963021925,
-        32961539874,
-        32942079236,
-        32928914512,
-        32928254444,
-        32908457470
-      ],
-      "cycle": 1,
-      "main_head_sha": "a2fc6af7c6f5aeaad8d3b8ef10cf16666bd70301",
-      "new_failure_run_ids": [
-        32996009689,
-        32995998534,
-        32995616746,
-        32982448457,
-        32977730345,
-        32972135511,
-        32928912655
-      ],
-      "next_recommended_action": "Inspect new failed workflow metadata and collect logs only through a supervised repair task.",
-      "open_draft_pull_requests": [
-        68,
-        67,
-        66,
-        65,
-        59
-      ],
-      "open_pull_request_count": 7,
-      "result": "review_required",
-      "timestamp": "2026-08-27T02:44:01Z",
-      "workflow_run_id": "manual-bootstrap-20260827",
-      "workflow_window_limited_to": 100
-    },
     {
       "active_workflow_run_ids": [
         33033571279,
@@ -1039,9 +983,38 @@
       "timestamp": "2026-09-01T18:31:27Z",
       "workflow_run_id": "33544103451",
       "workflow_window_limited_to": 100
+    },
+    {
+      "active_workflow_run_ids": [
+        33562909165,
+        33498119379
+      ],
+      "cancelled_workflow_run_ids": [
+        33157222762,
+        33157190551,
+        33099419125,
+        33074293944,
+        33074266357,
+        33074265993,
+        33074231129,
+        33074230931,
+        33074119855,
+        33073964011,
+        33055256467
+      ],
+      "cycle": 26,
+      "main_head_sha": "fe215c1eaf9cbc58ed3349b5cafdbcf673c0f193",
+      "new_failure_run_ids": [],
+      "next_recommended_action": "Wait for active workflows; do not cancel, rerun, merge, or modify source automatically.",
+      "open_draft_pull_requests": [],
+      "open_pull_request_count": 3,
+      "result": "monitoring",
+      "timestamp": "2026-09-01T21:47:09Z",
+      "workflow_run_id": "33562909165",
+      "workflow_window_limited_to": 100
     }
   ],
   "repository": "balajirajput96/codex",
   "schema_version": 2,
-  "updated_at": "2026-09-01T18:31:27Z"
+  "updated_at": "2026-09-01T21:47:09Z"
 }
