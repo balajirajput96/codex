@@ -527,3 +527,4 @@ pub(crate) async fn spawn_windows_sandbox_session_legacy(
 
     Ok(finish_driver_spawn(driver, stdin_open))
 }
+
