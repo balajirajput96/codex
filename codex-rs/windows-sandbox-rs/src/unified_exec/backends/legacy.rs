@@ -66,10 +66,9 @@ fn log_legacy_restricted_token_diagnostic(h_token: HANDLE, logs_base_dir: Option
         );
     }
     if bytes_required < std::mem::size_of::<u32>() as u32 {
-        log_note(
-            "LEGACY_DELETE_BOUNDARY_TOKEN restricting_sid_count=unavailable",
-            logs_base_dir,
-        );
+        let message = "LEGACY_DELETE_BOUNDARY_TOKEN restricting_sid_count=unavailable";
+        eprintln!("{message}");
+        log_note(message, logs_base_dir);
         return;
     }
 
@@ -84,18 +83,18 @@ fn log_legacy_restricted_token_diagnostic(h_token: HANDLE, logs_base_dir: Option
         ) != 0
     };
     if !query_succeeded {
-        log_note(
-            "LEGACY_DELETE_BOUNDARY_TOKEN restricting_sid_count=query_failed",
-            logs_base_dir,
-        );
+        let message = "LEGACY_DELETE_BOUNDARY_TOKEN restricting_sid_count=query_failed";
+        eprintln!("{message}");
+        log_note(message, logs_base_dir);
         return;
     }
 
     let restricting_sid_count = unsafe { std::ptr::read_unaligned(buffer.as_ptr().cast::<u32>()) };
-    log_note(
-        &format!("LEGACY_DELETE_BOUNDARY_TOKEN restricting_sid_count={restricting_sid_count}"),
-        logs_base_dir,
+    let message = format!(
+        "LEGACY_DELETE_BOUNDARY_TOKEN restricting_sid_count={restricting_sid_count}"
     );
+    eprintln!("{message}");
+    log_note(&message, logs_base_dir);
 }
 
 struct LegacyProcessHandles {
@@ -527,3 +526,4 @@ pub(crate) async fn spawn_windows_sandbox_session_legacy(
 
     Ok(finish_driver_spawn(driver, stdin_open))
 }
+
