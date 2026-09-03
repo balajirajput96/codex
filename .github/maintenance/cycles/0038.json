@@ -1,0 +1,24 @@
+{
+  "active_workflow_run_ids": [
+    33809421065
+  ],
+  "cancelled_workflow_run_ids": [
+    33157222762,
+    33157190551
+  ],
+  "cycle": 38,
+  "main_head_sha": "fe215c1eaf9cbc58ed3349b5cafdbcf673c0f193",
+  "new_failure_run_ids": [
+    33673474085
+  ],
+  "next_recommended_action": "Inspect new failed workflow metadata and collect logs only through a supervised repair task.",
+  "open_draft_pull_requests": [
+    75,
+    74
+  ],
+  "open_pull_request_count": 4,
+  "result": "review_required",
+  "timestamp": "2026-09-03T21:43:08Z",
+  "workflow_run_id": "33809421065",
+  "workflow_window_limited_to": 100
+}
