@@ -1,5 +1,5 @@
 {
-  "completed_cycles": 129,
+  "completed_cycles": 130,
   "created_at": "2026-08-27T02:43:58Z",
   "known_failure_runs": {
     "32928912655": {
@@ -112,30 +112,11 @@
     }
   },
   "last_result": "monitoring",
-  "latest_cycle_path": ".github/maintenance/cycles/0129.json",
+  "latest_cycle_path": ".github/maintenance/cycles/0130.json",
   "legacy_history_entries": 1,
   "max_cycles": 2400,
   "next_recommended_action": "Wait for active workflows; do not cancel, rerun, merge, or modify source automatically.",
   "recent_history": [
-    {
-      "active_workflow_run_ids": [
-        34886450946
-      ],
-      "cancelled_workflow_run_ids": [],
-      "cycle": 105,
-      "main_head_sha": "fe215c1eaf9cbc58ed3349b5cafdbcf673c0f193",
-      "new_failure_run_ids": [],
-      "next_recommended_action": "Wait for active workflows; do not cancel, rerun, merge, or modify source automatically.",
-      "open_draft_pull_requests": [
-        75,
-        74
-      ],
-      "open_pull_request_count": 4,
-      "result": "monitoring",
-      "timestamp": "2026-09-14T19:22:16Z",
-      "workflow_run_id": "34886450946",
-      "workflow_window_limited_to": 100
-    },
     {
       "active_workflow_run_ids": [
         34907410044
@@ -591,9 +572,28 @@
       "timestamp": "2026-09-19T00:21:33Z",
       "workflow_run_id": "35409070315",
       "workflow_window_limited_to": 100
+    },
+    {
+      "active_workflow_run_ids": [
+        35425149415
+      ],
+      "cancelled_workflow_run_ids": [],
+      "cycle": 130,
+      "main_head_sha": "fe215c1eaf9cbc58ed3349b5cafdbcf673c0f193",
+      "new_failure_run_ids": [],
+      "next_recommended_action": "Wait for active workflows; do not cancel, rerun, merge, or modify source automatically.",
+      "open_draft_pull_requests": [
+        75,
+        74
+      ],
+      "open_pull_request_count": 4,
+      "result": "monitoring",
+      "timestamp": "2026-09-19T05:53:45Z",
+      "workflow_run_id": "35425149415",
+      "workflow_window_limited_to": 100
     }
   ],
   "repository": "balajirajput96/codex",
   "schema_version": 2,
-  "updated_at": "2026-09-19T00:21:33Z"
+  "updated_at": "2026-09-19T05:53:45Z"
 }
