@@ -1,5 +1,5 @@
 {
-  "completed_cycles": 230,
+  "completed_cycles": 231,
   "created_at": "2026-08-27T02:43:58Z",
   "known_failure_runs": {
     "32928912655": {
@@ -109,33 +109,20 @@
       "first_observed_at": "2026-09-09T14:36:40Z",
       "head_sha": "fe215c1eaf9cbc58ed3349b5cafdbcf673c0f193",
       "url": "https://github.com/balajirajput96/codex/actions/runs/33673474085"
+    },
+    "38026735343": {
+      "conclusion": "failure",
+      "first_observed_at": "2026-10-10T07:08:19Z",
+      "head_sha": "fe215c1eaf9cbc58ed3349b5cafdbcf673c0f193",
+      "url": "https://github.com/balajirajput96/codex/actions/runs/38026735343"
     }
   },
-  "last_result": "monitoring",
-  "latest_cycle_path": ".github/maintenance/cycles/0230.json",
+  "last_result": "review_required",
+  "latest_cycle_path": ".github/maintenance/cycles/0231.json",
   "legacy_history_entries": 1,
   "max_cycles": 2400,
-  "next_recommended_action": "Wait for active workflows; do not cancel, rerun, merge, or modify source automatically.",
+  "next_recommended_action": "Inspect new failed workflow metadata and collect logs only through a supervised repair task.",
   "recent_history": [
-    {
-      "active_workflow_run_ids": [
-        37181191722
-      ],
-      "cancelled_workflow_run_ids": [],
-      "cycle": 206,
-      "main_head_sha": "fe215c1eaf9cbc58ed3349b5cafdbcf673c0f193",
-      "new_failure_run_ids": [],
-      "next_recommended_action": "Wait for active workflows; do not cancel, rerun, merge, or modify source automatically.",
-      "open_draft_pull_requests": [
-        75,
-        74
-      ],
-      "open_pull_request_count": 4,
-      "result": "monitoring",
-      "timestamp": "2026-10-04T05:54:08Z",
-      "workflow_run_id": "37181191722",
-      "workflow_window_limited_to": 100
-    },
     {
       "active_workflow_run_ids": [
         37201868903
@@ -591,9 +578,31 @@
       "timestamp": "2026-10-10T00:51:48Z",
       "workflow_run_id": "38010838630",
       "workflow_window_limited_to": 100
+    },
+    {
+      "active_workflow_run_ids": [
+        38033370249,
+        38027052930
+      ],
+      "cancelled_workflow_run_ids": [],
+      "cycle": 231,
+      "main_head_sha": "fe215c1eaf9cbc58ed3349b5cafdbcf673c0f193",
+      "new_failure_run_ids": [
+        38026735343
+      ],
+      "next_recommended_action": "Inspect new failed workflow metadata and collect logs only through a supervised repair task.",
+      "open_draft_pull_requests": [
+        75,
+        74
+      ],
+      "open_pull_request_count": 5,
+      "result": "review_required",
+      "timestamp": "2026-10-10T07:08:19Z",
+      "workflow_run_id": "38033370249",
+      "workflow_window_limited_to": 100
     }
   ],
   "repository": "balajirajput96/codex",
   "schema_version": 2,
-  "updated_at": "2026-10-10T00:51:48Z"
+  "updated_at": "2026-10-10T07:08:19Z"
 }
