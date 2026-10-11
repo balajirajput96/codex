@@ -1,0 +1,19 @@
+{
+  "active_workflow_run_ids": [
+    38103373268
+  ],
+  "cancelled_workflow_run_ids": [],
+  "cycle": 235,
+  "main_head_sha": "fe215c1eaf9cbc58ed3349b5cafdbcf673c0f193",
+  "new_failure_run_ids": [],
+  "next_recommended_action": "Wait for active workflows; do not cancel, rerun, merge, or modify source automatically.",
+  "open_draft_pull_requests": [
+    75,
+    74
+  ],
+  "open_pull_request_count": 5,
+  "result": "monitoring",
+  "timestamp": "2026-10-11T01:54:12Z",
+  "workflow_run_id": "38103373268",
+  "workflow_window_limited_to": 100
+}
